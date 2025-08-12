@@ -1,4 +1,3 @@
-// Vercel serverless proxy for Straico
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -8,7 +7,6 @@ export default async function handler(req, res) {
   const key = process.env.STRAICO_API_KEY;
   if (!key) return res.status(500).json({ error: 'Server not configured' });
 
-  // If your Postman docs show a different path, set STRAICO_CHAT_URL in Vercel.
   const url = process.env.STRAICO_CHAT_URL || 'https://stapi.straico.com/v0/chat/completions';
 
   try {
@@ -21,27 +19,21 @@ export default async function handler(req, res) {
       body: JSON.stringify({ model, messages, stream: !!stream })
     });
 
-    if (!stream) {
-      const data = await upstream.json();
-      return res.status(upstream.ok ? 200 : upstream.status).json(data);
-    }
+    const text = await upstream.text();
+    // Try to parse JSON, otherwise pass raw text through so we can see the real error
+    let payload;
+    try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
 
-    // Streaming passthrough if you enable it later
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
+    return res.status(upstream.ok ? 200 : upstream.status).json({
+      ok: upstream.ok,
+      status: upstream.status,
+      url,
+      model,
+      response: payload
     });
-    const reader = upstream.body.getReader();
-    const encoder = new TextEncoder();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      res.write(encoder.encode(value));
-    }
-    res.end();
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Upstream error' });
+    return res.status(500).json({ error: 'Upstream error (proxy exception)', detail: String(err) });
   }
 }
