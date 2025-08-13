@@ -85,6 +85,16 @@
   .rich .sentence{display:block; opacity:0; transform:translateY(4px); animation:rise .25s ease forwards; margin:0 0 6px 0}
   @keyframes rise{to{opacity:1; transform:translateY(0)}}
 
+  /* space for buttons */
+.bubble.ai { position: relative; padding-bottom: 34px; }
+.actions { position: absolute; left: 12px; bottom: 8px; display: flex; gap: 6px; }
+.btn-mini {
+  background: #0c1118; color: var(--ink);
+  border: 1px solid var(--ring); border-radius: 8px;
+  padding: 4px 8px; font-size: 11px; cursor: pointer; opacity: .85;
+}
+.btn-mini:hover { opacity: 1; }
+
   /* Basic markdown styling */
   .rich h1,.rich h2,.rich h3{margin:8px 0 6px}
   .rich h1{font-size:20px} .rich h2{font-size:18px} .rich h3{font-size:16px}
@@ -204,33 +214,51 @@
     return text.split(/(?<=[.!?…])\s+(?=[^\s])/g);
   }
 
-  function showBotReply(reply, typingBubble){
-    // create final bubble
-    const b = document.createElement('div');
-    b.className = 'bubble ai';
-    const rich = document.createElement('div');
-    rich.className = 'rich';
-    b.appendChild(rich);
+  function showBotReply(reply, typingBubble, sourcePrompt){
+  const b = document.createElement('div');
+  b.className = 'bubble ai';
+  const rich = document.createElement('div');
+  rich.className = 'rich';
+  b.appendChild(rich);
 
-    if (typingBubble) messagesEl.replaceChild(b, typingBubble);
-    else messagesEl.appendChild(b);
+  // actions: Copy + Regenerate
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'btn-mini';
+  copyBtn.textContent = 'Copy';
+  copyBtn.onclick = () => {
+    const plain = rich.innerText || String(reply);
+    navigator.clipboard.writeText(plain);
+    toast('Copied');
+  };
+  const regenBtn = document.createElement('button');
+  regenBtn.className = 'btn-mini';
+  regenBtn.textContent = 'Regenerate';
+  regenBtn.onclick = () => regenerate(sourcePrompt, b);
+  actions.appendChild(copyBtn);
+  actions.appendChild(regenBtn);
+  b.appendChild(actions);
 
-    const parts = splitSentences(String(reply));
-    let i = 0;
-    function next(){
-      if (i >= parts.length) return;
-      const span = document.createElement('div');
-      span.className = 'sentence';
-      span.innerHTML = mdToHtml(parts[i]);
-      rich.appendChild(span);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-      i += 1;
-      setTimeout(next, 140); // pace between sentences
-    }
-    next();
+  if (typingBubble) messagesEl.replaceChild(b, typingBubble);
+  else messagesEl.appendChild(b);
 
-    history.push({ role:'assistant', content: String(reply) });
+  const parts = splitSentences(String(reply));
+  let i = 0;
+  function next(){
+    if (i >= parts.length) return;
+    const span = document.createElement('div');
+    span.className = 'sentence';
+    span.innerHTML = mdToHtml(parts[i]);
+    rich.appendChild(span);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    i += 1;
+    setTimeout(next, 140);
   }
+  next();
+
+  history.push({ role:'assistant', content: String(reply) });
+}
 
   function toast(msg){
     toastEl.textContent = msg;
@@ -301,7 +329,7 @@
         || data?.response?.completion?.choices?.[0]?.message?.content
         || data?.response?.text
         || 'No content returned.';
-      showBotReply(reply, thinking);
+      showBotReply(reply, thinking, text);
 
     } catch {
       thinking.remove();
@@ -312,16 +340,54 @@
     }
   }
 
+  async function regenerate(promptText, oldBubble){
+  if (!promptText || !oldBubble) return;
+  // remove last assistant in history (the one we are regenerating)
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'assistant') { history.splice(i, 1); break; }
+  }
+  // typing bubble where the old one was
+  const t = addTyping();
+  messagesEl.insertBefore(t, oldBubble);
+  oldBubble.remove();
+
+  try {
+    const model = modelSel.value;
+    const r = await fetch('/api/straico/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages: history, stream: false })
+    });
+    const raw = await r.text();
+    let data; try { data = JSON.parse(raw); } catch { data = { raw }; }
+
+    if (!r.ok) {
+      const err = data?.response?.error || data?.error || raw;
+      showBotReply('Error ' + r.status + ': ' + err, null);
+      return;
+    }
+    const reply =
+      data?.choices?.[0]?.message?.content
+      || data?.response?.completion?.choices?.[0]?.message?.content
+      || data?.response?.text
+      || 'No content returned.';
+    showBotReply(reply, t, promptText);
+  } catch {
+    t.remove();
+    showBotReply('Network error. Please try again.', null);
+  }
+}
+
+
   // Events
   sendBtn.addEventListener('click', send);
   promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
   refreshBtn.addEventListener('click', resetChat);
   modelSel.addEventListener('change', () => {
-    resetChat();
-    const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
-    toast('Model selected: ' + label);
-    promptEl.focus();
-  });
+  const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
+  toast('Model selected: ' + label);
+  promptEl.focus();
+});
 
   // Boot
   loadModels();
