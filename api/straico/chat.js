@@ -1,4 +1,4 @@
-// ServeSmartAI → Straico proxy
+// /api/straico/chat.js
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -9,152 +9,136 @@ export default async function handler(req, res) {
     const key = process.env.STRAICO_API_KEY;
     if (!key) return res.status(500).json({ error: 'Server not configured' });
 
-    const joined = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
-    const lastUser = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+    const joined   = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+    const lastUser = [...messages].reverse().find(m => m.role === 'user')?.content || joined || 'Reply to the user.';
 
-    // Prefer chat endpoints for reasoning families
-    const isReasoning = /(?:^|\/)(?:o1|o3|r1|grok)(?:[-:]|$)/i.test(model);
-
+    // Try chat first for reasoning, then prompt; for others try both.
     const endpoints = [
-      // chat style
       'https://api.straico.com/v1/chat/completions',
       'https://api.straico.com/v0/chat/completions',
-      // prompt style
       'https://api.straico.com/v1/prompt/completion',
       'https://api.straico.com/v0/prompt/completion'
     ];
 
-    const chatBody  = { model, messages, temperature, max_tokens, stream: !!stream };
-    const msgBody   = { model, message: lastUser || joined, temperature, max_tokens, stream: !!stream };
-    const promptBody= { model, prompt: joined, temperature, max_tokens, stream: !!stream };
-    const inputBody = { model, input: joined, temperature, max_tokens, stream: !!stream };
+    // helpers to build the right body for each endpoint
+    const bodyFor = (url) => {
+      const base = { model, temperature, max_tokens, stream: !!stream };
+      if (url.includes('/chat/')) {
+        return [
+          { ...base, messages },                          // must include messages for chat API
+          { ...base, messages, prompt: joined },          // lenient variant
+        ];
+      } else {
+        // prompt API must receive a single field named message (or prompt/input as fallbacks)
+        return [
+          { ...base, message: lastUser },                 // strict expectation
+          { ...base, prompt: joined },
+          { ...base, input: joined },
+          { ...base, message: joined, messages }          // belt and braces
+        ];
+      }
+    };
 
-    const bodies = isReasoning
-      ? [chatBody, { ...chatBody, message: lastUser, prompt: joined, input: joined }, msgBody, promptBody, inputBody]
-      : [chatBody, promptBody, msgBody, inputBody];
-
-    async function call(url, body, wantStream) {
+    async function tryCall(url, body){
       const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
         body: JSON.stringify(body)
       });
       const ctype = r.headers.get('content-type') || '';
-      return { r, ctype, url, bodyKeys: Object.keys(body), wantStream };
+      return { r, ctype, url, bodyKeys:Object.keys(body) };
     }
 
-    // Try combinations until one works
-    let last, ok;
-    for (const url of endpoints) {
-      for (const body of bodies) {
-        const resp = await call(url, body, !!stream);
+    let ok = null, last = null;
+
+    outer: for (const url of endpoints) {
+      for (const b of bodyFor(url)) {
+        const resp = await tryCall(url, b);
         last = resp;
-        if (resp.r.ok) { ok = resp; break; }
+        if (resp.r.ok) { ok = resp; break outer; }
+        // shape errors, keep trying; other statuses propagate later
         if (![400,401,403,404,422].includes(resp.r.status)) continue;
       }
-      if (ok) break;
     }
 
     if (!ok) {
-      const t = await last.r.text();
+      const t = await (last?.r?.text?.() ?? Promise.resolve(''));
       let payload; try { payload = JSON.parse(t); } catch { payload = { raw: t }; }
-      return res.status(last.r.status || 500).json({
-        ok: false, status: last.r.status || 500,
-        tried: { url: last.url, bodyKeys: last.bodyKeys },
+      return res.status(last?.r?.status || 500).json({
+        ok:false, status:last?.r?.status || 500,
+        tried:{ url:last?.url, bodyKeys:last?.bodyKeys },
         response: payload
       });
     }
 
-    // Streaming path
+    // Streaming passthrough or simulation
     if (stream) {
-      // If upstream is SSE, just pipe it through
       if (ok.ctype.includes('text/event-stream')) {
         res.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache, no-transform',
-          'Connection': 'keep-alive',
-          'X-Accel-Buffering': 'no'
+          'Content-Type':'text/event-stream',
+          'Cache-Control':'no-cache, no-transform',
+          'Connection':'keep-alive',
+          'X-Accel-Buffering':'no'
         });
         const reader = ok.r.body.getReader();
-        const decoder = new TextDecoder();
+        const dec = new TextDecoder();
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value);
-          res.write(chunk);
+          res.write(dec.decode(value));
         }
-        // end marker and model tag
-        res.write(`data: ${JSON.stringify({ done: true, used_model: model })}\n\n`);
+        res.write(`data: ${JSON.stringify({ done:true, used_model:model })}\n\n`);
         return res.end();
       }
 
-      // Otherwise, read fully, extract text, then simulate SSE so the UI still streams
-      const text = await ok.r.text();
-      let payload; try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
-
+      // No SSE upstream: read fully, then simulate SSE so the UI still types
+      const raw = await ok.r.text();
+      let payload; try { payload = JSON.parse(raw); } catch { payload = { raw } };
       const candidates = [
         payload?.completion?.choices?.[0]?.message?.content,
         payload?.data?.completion?.choices?.[0]?.message?.content,
         payload?.choices?.[0]?.message?.content,
-        payload?.data?.choices?.[0]?.message?.content,
-        payload?.completion?.choices?.[0]?.text,
         payload?.choices?.[0]?.text,
-        payload?.output,
-        payload?.data?.output,
-        payload?.text
+        payload?.text, payload?.output
       ];
-      const reply = candidates.find(v => typeof v === 'string' && v.trim()) ||
-                    (typeof payload === 'string' ? payload : JSON.stringify(payload));
+      const reply = candidates.find(v => typeof v === 'string' && v.trim()) || JSON.stringify(payload);
 
       res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no'
+        'Content-Type':'text/event-stream',
+        'Cache-Control':'no-cache, no-transform',
+        'Connection':'keep-alive',
+        'X-Accel-Buffering':'no'
       });
-
-      // chunk out as "delta" pieces
-      const cps = 70;               // server side chunk rate
-      let i = 0;
+      let i = 0, step = 80;
       const send = () => {
-        if (i >= reply.length) {
-          res.write(`data: ${JSON.stringify({ done: true, used_model: model })}\n\n`);
-          return res.end();
-        }
-        const next = reply.slice(i, i + cps);
-        i += cps;
+        if (i >= reply.length) { res.write(`data: ${JSON.stringify({ done:true, used_model:model })}\n\n`); return res.end(); }
+        const next = reply.slice(i, i + step); i += step;
         res.write(`data: ${JSON.stringify({ choices:[{ delta:{ content: next } }] })}\n\n`);
-        setTimeout(send, 60);
+        setTimeout(send, 55);
       };
-      send();
-      return;
+      return send();
     }
 
-    // Non-stream: read, normalise, return JSON
-    const text = await ok.r.text();
-    let payload; try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+    // Non-stream: normalise and return
+    const txt = await ok.r.text();
+    let payload; try { payload = JSON.parse(txt); } catch { payload = { raw: txt }; }
     const candidates = [
       payload?.completion?.choices?.[0]?.message?.content,
       payload?.data?.completion?.choices?.[0]?.message?.content,
       payload?.choices?.[0]?.message?.content,
-      payload?.data?.choices?.[0]?.message?.content,
-      payload?.completion?.choices?.[0]?.text,
       payload?.choices?.[0]?.text,
-      payload?.output,
-      payload?.data?.output,
-      payload?.text
+      payload?.text, payload?.output
     ];
-    const reply = candidates.find(v => typeof v === 'string' && v.trim()) ||
-                  (typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2));
+    const reply = candidates.find(v => typeof v === 'string' && v.trim()) || JSON.stringify(payload, null, 2);
 
     return res.status(200).json({
-      ok: true, status: 200, used_model: model,
+      ok:true, status:200, used_model:model,
       response: payload,
-      choices: [{ message: { content: reply } }]
+      choices:[{ message:{ content: reply } }]
     });
 
   } catch (err) {
     console.error('proxy_crash', err);
-    return res.status(500).json({ error: 'Upstream error (proxy exception)', detail: String(err) });
+    return res.status(500).json({ error:'Upstream error (proxy exception)', detail:String(err) });
   }
 }
