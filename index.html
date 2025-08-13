@@ -53,6 +53,30 @@ html, body { height: 100%; overflow: hidden; }
 
   .messages{ position: relative; }
 
+  // ---- Smooth scroll helpers ----
+function isNearBottom(px = 40){
+  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+}
+
+let scrollAnimId = 0;
+function smoothScrollToBottom(duration = 450){
+  cancelAnimationFrame(scrollAnimId);
+  const start = messagesEl.scrollTop;
+  const end = messagesEl.scrollHeight - messagesEl.clientHeight;
+  const t0 = performance.now();
+  const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+
+  function frame(now){
+    const p = Math.min(1, (now - t0) / duration);
+    const y = start + (end - start) * easeInOutCubic(p);
+    messagesEl.scrollTop = y;
+    if (p < 1) scrollAnimId = requestAnimationFrame(frame);
+  }
+  scrollAnimId = requestAnimationFrame(frame);
+}
+// ---- End smooth scroll helpers ----
+
+
 /* stronger, taller fade at the top of the scrolling region */
 .messages::before{
   content: "";
