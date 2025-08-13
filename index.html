@@ -206,14 +206,19 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
     history.push({ role:'user', content:text });
   }
-  function addTyping(){
-    const b = document.createElement('div');
-    b.className = 'bubble ai typing';
-    b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-    messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    return b;
-  }
+  function addTyping() {
+  const b = document.createElement("div");
+  b.className = "bubble ai typing";
+  b.innerHTML = `
+    <div class="dots">
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>`;
+  chat.appendChild(b);
+  chat.scrollTop = chat.scrollHeight;
+}
+
   function toast(msg){
     toastEl.textContent = msg;
     toastEl.classList.add('show');
