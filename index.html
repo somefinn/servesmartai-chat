@@ -51,15 +51,19 @@ html, body { height: 100%; overflow: hidden; }
   overflow: auto;           /* scroll inside, page stays fixed */
 }
 
-  .messages { position: relative; }
+  .messages{ position: relative; }
+
+/* stronger, taller fade at the top of the scrolling region */
 .messages::before{
   content: "";
-  position: sticky; top: 0; left: 0; right: 0; height: 22px;
+  position: sticky;
+  top: 0; left: 0; right: 0;
+  height: 64px;                     /* was 22px */
   display: block;
-  background: linear-gradient(180deg, rgba(15,17,21,1), rgba(15,17,21,0));
-  pointer-events: none; z-index: 2;
+  background: linear-gradient(180deg, var(--bg), rgba(15,17,21,0));
+  pointer-events: none;
+  z-index: 2;
 }
-
   
   .wrap{min-height:100svh; display:grid; grid-template-rows:auto 1fr auto}
   header{
@@ -95,13 +99,14 @@ html, body { height: 100%; overflow: hidden; }
   }
   .messages{padding:clamp(14px,2.5vw,20px); overflow:auto}
   .bubble{
-    max-width:76ch; border-radius:16px; padding:12px 14px; margin:8px 0; line-height:1.6;
-    box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 10px 24px rgba(0,0,0,.25)
-  }
-  .user{background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto}
-  .ai{background:var(--bubble-ai); border:1px solid var(--ring)}
-  .ai .copy{display:none; float:right; margin-left:8px; font-size:12px; opacity:.65; cursor:pointer}
-  .ai:hover .copy{display:inline-block}
+  display: block;
+  width: fit-content;
+  max-width: min(76ch, calc(100% - 32px));  /* same wrap as before */
+}
+
+/* keep alignment behaviour */
+.user{ margin-left: auto; }
+.ai{ margin-right: auto; }
 
   /* Thinking bubble animation */
   .ai.typing{display:inline-flex; align-items:center; gap:6px; padding:12px 14px}
@@ -110,13 +115,15 @@ html, body { height: 100%; overflow: hidden; }
   @keyframes blink{0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)}}
 
   /* centre the typing dots inside the AI bubble */
+/* tiny, centred thinking bubble that wraps the dots */
 .ai.typing{
   display: inline-flex;
   align-items: center;
-  justify-content: center;   /* centre horizontally */
+  justify-content: center;
   gap: 6px;
-  min-height: 44px;          /* gives it a neat square-ish feel */
-  width: 100%;
+  padding: 8px 12px;
+  width: fit-content;      /* was 100% */
+  min-height: 0;           /* drop the tall square look */
 }
 
   .composer{border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118)}
@@ -427,6 +434,29 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
     }
   }
 
+  // only auto scroll if the user is near the bottom already
+function isNearBottom(px = 40){
+  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+}
+
+let scrollAnimId = 0;
+function smoothScrollToBottom(duration = 450){
+  cancelAnimationFrame(scrollAnimId);
+  const start = messagesEl.scrollTop;
+  const end = messagesEl.scrollHeight - messagesEl.clientHeight;
+  const t0 = performance.now();
+  const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+
+  function frame(now){
+    const p = Math.min(1, (now - t0) / duration);
+    const y = start + (end - start) * easeInOutCubic(p);
+    messagesEl.scrollTop = y;
+    if (p < 1) scrollAnimId = requestAnimationFrame(frame);
+  }
+  scrollAnimId = requestAnimationFrame(frame);
+}
+
+  
   // Send via proxy
   async function send(){
     const text = promptEl.value.trim();
