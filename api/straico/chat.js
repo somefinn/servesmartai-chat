@@ -23,15 +23,14 @@ export default async function handler(req, res) {
   const fallbackUrl = 'https://api.straico.com/v0/prompt/completion';
 
   // Build a body that satisfies both possible shapes
-  const baseBody = {
-    model,                  // e.g. "openai/gpt-4o-mini" from your dropdown
-    input: prompt,          // many installs expect "input"
-    prompt,                 // others expect "prompt"
-    message: prompt,        // some examples use "message"
-    temperature,
-    max_tokens,
-    stream: !!stream
-  };
+const body = {
+  model,           // e.g. "openai/gpt-4o-mini"
+  input: prompt,   // single field Straico expects for prompt/completion
+  temperature,
+  max_tokens,
+  stream: !!stream
+};
+
 
   try {
     const first = await fetch(primaryUrl, {
