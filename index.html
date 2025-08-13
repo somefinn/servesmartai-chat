@@ -51,6 +51,15 @@ html, body { height: 100%; overflow: hidden; }
   overflow: auto;           /* scroll inside, page stays fixed */
 }
 
+  .messages { position: relative; }
+.messages::before{
+  content: "";
+  position: sticky; top: 0; left: 0; right: 0; height: 22px;
+  display: block;
+  background: linear-gradient(180deg, rgba(15,17,21,1), rgba(15,17,21,0));
+  pointer-events: none; z-index: 2;
+}
+
   
   .wrap{min-height:100svh; display:grid; grid-template-rows:auto 1fr auto}
   header{
@@ -100,6 +109,16 @@ html, body { height: 100%; overflow: hidden; }
   .dot:nth-child(2){animation-delay:.2s} .dot:nth-child(3){animation-delay:.4s}
   @keyframes blink{0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)}}
 
+  /* centre the typing dots inside the AI bubble */
+.ai.typing{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;   /* centre horizontally */
+  gap: 6px;
+  min-height: 44px;          /* gives it a neat square-ish feel */
+  width: 100%;
+}
+
   .composer{border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118)}
   .input{background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px; box-shadow:var(--shadow)}
   .input::placeholder{color:var(--muted)}
@@ -107,7 +126,7 @@ html, body { height: 100%; overflow: hidden; }
   .send:disabled{opacity:.6; cursor:default}
 
   /* Sentence-by-sentence fade-in */
-  .rich .sentence{display:block; opacity:0; transform:translateY(4px); animation:rise .25s ease forwards; margin:0 0 6px 0}
+  .rich .sentence{display:block; opacity:0; transform:translateY(4px); animation:rise .4s ease forwards; margin:0 0 6px 0}
   @keyframes rise{to{opacity:1; transform:translateY(0)}}
 
   /* space for buttons */
@@ -296,6 +315,93 @@ html, body { height: 100%; overflow: hidden; }
     history.length = 0;
     toast('New chat started');
   }
+// Try to pull content pieces from a streamed 'data: {...}' line
+function extractEventContent(line){
+  // line is after removing leading "data: "
+  try {
+    const j = JSON.parse(line);
+    // common shapes
+    return (
+      j?.choices?.[0]?.delta?.content ??
+      j?.choices?.[0]?.message?.content ??
+      j?.delta?.content ??
+      j?.content ??
+      j?.text ??
+      j?.completion ??
+      ''
+    );
+  } catch { return ''; }
+}
+
+// Stream from the proxy and update the same bubble as chunks arrive
+async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
+  const res = await fetch('/api/straico/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: historySoFar, stream: true })
+  });
+
+  // If streaming not supported upstream, fall back to non-stream
+  if (!res.ok || !res.body) return null;
+
+  // Swap typing bubble for a real bubble now
+  const b = document.createElement('div');
+  b.className = 'bubble ai';
+  const rich = document.createElement('div');
+  rich.className = 'rich';
+  b.appendChild(rich);
+
+  // actions (Copy / Regenerate) shell, wired after completion
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+  const regenBtn = document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+  actions.appendChild(copyBtn); actions.appendChild(regenBtn);
+  b.appendChild(actions);
+
+  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let aggregate = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Try to parse Server-Sent Events style: "data: {json}\n\n"
+    const parts = buffer.split(/\n\n/);
+    buffer = parts.pop() || ''; // save the incomplete tail
+
+    for (const chunk of parts) {
+      const line = chunk.replace(/^data:\s?/, '').trim();
+      const piece = extractEventContent(line) || '';
+      if (!piece) continue;
+      aggregate += piece;
+
+      // Update the bubble content progressively with gentle fade
+      const lastLen = rich.textContent?.length || 0;
+      rich.innerHTML = mdToHtml(aggregate);
+
+      // apply fade-in to the newly added part by wrapping the tail
+      const nodes = rich.querySelectorAll('.sentence'); // from your CSS
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  }
+
+  // If nothing aggregated, return null so caller can fall back
+  if (!aggregate) return null;
+
+  // Wire actions now that we have the final text
+  copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || aggregate); toast('Copied'); };
+  regenBtn.onclick = () => regenerate(sourcePrompt, b);
+
+  // push to history
+  history.push({ role: 'assistant', content: aggregate });
+  return aggregate;
+}
 
   // Load models
   async function loadModels(){
@@ -378,25 +484,35 @@ html, body { height: 100%; overflow: hidden; }
 
   try {
     const model = modelSel.value;
-    const r = await fetch('/api/straico/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages: history, stream: false })
-    });
-    const raw = await r.text();
-    let data; try { data = JSON.parse(raw); } catch { data = { raw }; }
 
-    if (!r.ok) {
-      const err = data?.response?.error || data?.error || raw;
-      showBotReply('Error ' + r.status + ': ' + err, null);
-      return;
-    }
-    const reply =
-      data?.choices?.[0]?.message?.content
-      || data?.response?.completion?.choices?.[0]?.message?.content
-      || data?.response?.text
-      || 'No content returned.';
-    showBotReply(reply, t, promptText);
+// 1) try streaming
+let got = null;
+try { got = await streamReply(model, history, thinking, text); } catch {}
+if (got !== null) {
+  // streaming succeeded and history is already updated
+  sendBtn.disabled = false; promptEl.focus(); return;
+}
+
+// 2) fall back to the old non-stream path (unchanged)
+const r = await fetch('/api/straico/chat', {
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body: JSON.stringify({ model, messages: history, stream:false })
+});
+const raw = await r.text();
+let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+if (!r.ok){
+  thinking.remove();
+  const err = data?.response?.error || data?.error || raw;
+  showBotReply('Error ' + r.status + ': ' + err, null);
+  return;
+}
+const reply =
+  data?.choices?.[0]?.message?.content
+  || data?.response?.completion?.choices?.[0]?.message?.content
+  || data?.response?.text
+  || 'No content returned.';
+showBotReply(reply, thinking, text);
   } catch {
     t.remove();
     showBotReply('Network error. Please try again.', null);
