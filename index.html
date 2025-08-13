@@ -30,7 +30,7 @@
   html, body { height: 100%; }
   body {
     margin: 0;
-    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     color: var(--ink);
     background:
       radial-gradient(1400px 900px at 10% -10%, #25324a 0%, transparent 60%),
@@ -51,18 +51,11 @@
     align-items: center;
   }
 
-  .brand {
-    display: flex; align-items: center; gap: 10px;
-  }
-  .logo {
-    width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    box-shadow: 0 8px 20px rgba(106,166,255,.35);
-  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 8px 20px rgba(106,166,255,.35); }
   .title { margin: 0; font-weight: 600; font-size: 15px; letter-spacing: .2px; color: var(--ink); opacity: .95; }
 
-  .controls {
-    display: flex; align-items: center; gap: 10px;
-  }
+  .controls { display: flex; align-items: center; gap: 10px; }
   .select {
     appearance: none;
     background: var(--panel);
@@ -75,11 +68,20 @@
     box-shadow: var(--shadow);
   }
   .select:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .controls .chev {
-    pointer-events: none;
-    margin-left: -34px;
-    width: 12px; opacity: .7;
+  .chev { pointer-events: none; margin-left: -34px; width: 12px; opacity: .7; }
+
+  .refresh{
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--ring);
+    border-radius: 999px;
+    width: 36px; height: 36px;
+    display: grid; place-items: center;
+    margin-left: 6px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
   }
+  .refresh:hover{ filter: brightness(1.1); }
 
   /* Chat panel */
   .panel {
@@ -92,10 +94,7 @@
     overflow: hidden;
   }
 
-  .messages {
-    padding: clamp(14px, 2.5vw, 20px);
-    overflow: auto;
-  }
+  .messages { padding: clamp(14px, 2.5vw, 20px); overflow: auto; }
   .bubble {
     max-width: 76ch;
     border-radius: 16px;
@@ -138,7 +137,19 @@
   }
   .send:disabled { opacity: .6; cursor: default; }
 
-  /* Mobile niceties */
+  .toast{
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    background: rgba(20,26,34,.9);
+    color: var(--ink);
+    border: 1px solid var(--ring);
+    padding: 8px 12px; border-radius: 10px;
+    font-size: 12px;
+    opacity: 0; transition: opacity .2s ease;
+    z-index: 9999;
+  }
+  .toast.show{ opacity: 1; }
+
+  /* Mobile */
   @media (max-width: 560px) {
     .panel { margin: 0; border-radius: 0; }
     .messages { padding-bottom: 8px; }
@@ -153,20 +164,20 @@
       <h1 class="title">ServeSmartAI</h1>
     </div>
 
-<div class="controls" title="Choose a model">
-  <select id="model" class="select"></select>
-  <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-  </svg>
+    <div class="controls" title="Choose a model">
+      <select id="model" class="select"></select>
+      <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
 
-  <!-- NEW: refresh button -->
-  <button id="refresh" class="refresh" title="New chat">
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-      <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
-      <path d="M3.5 9A9 9 0 0 1 18.3 5.6L23 10M1 14l4.7 4.4A9 9 0 0 0 20.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
-    </svg>
-  </button>
-</div>
+      <button id="refresh" class="refresh" title="New chat">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <path d="M3.5 9A9 9 0 0 1 18.3 5.6L23 10M1 14l4.7 4.4A9 9 0 0 0 20.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
+    </div>
+  </header>
 
   <main class="panel">
     <div id="messages" class="messages"></div>
@@ -181,12 +192,16 @@
   </footer>
 </div>
 
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
 <script>
   // Elements
-  const modelSel = document.getElementById('model');
-  const messagesEl = document.getElementById('messages');
-  const promptEl = document.getElementById('prompt');
-  const sendBtn = document.getElementById('send');
+  const modelSel  = document.getElementById('model');
+  const messagesEl= document.getElementById('messages');
+  const promptEl  = document.getElementById('prompt');
+  const sendBtn   = document.getElementById('send');
+  const refreshBtn= document.getElementById('refresh');
+  const toastEl   = document.getElementById('toast');
 
   // No system prompt, raw access
   const history = []; // [{role:'user'|'assistant', content:'...'}]
@@ -214,6 +229,18 @@
     return b;
   }
 
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(() => toastEl.classList.remove('show'), 1600);
+  }
+
+  function resetChat(){
+    messagesEl.innerHTML = '';
+    history.length = 0;
+    toast('New chat started');
+  }
+
   // Load models from your secure endpoint
   async function loadModels() {
     try {
@@ -224,27 +251,23 @@
       list.forEach(m => {
         if (!m?.model) return;
         const o = document.createElement('option');
-        o.value = m.model;
-        o.textContent = m.name || m.model;
+        o.value = m.model;                 // exact API id
+        o.textContent = m.name || m.model; // neat label
         modelSel.appendChild(o);
       });
-      // Prefer these if present, else first item
-      const preferred = ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet'];
+      const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
       const found = preferred.find(p => [...modelSel.options].some(o => o.value === p));
       modelSel.value = found || modelSel.options[0]?.value || '';
     } catch {
-      // Fallback minimal set if listing fails
-      ['openai/gpt-4o-mini'].forEach(id => {
-        const o = document.createElement('option'); o.value = id; o.textContent = id;
-        modelSel.appendChild(o);
-      });
+      const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'openai/gpt-4o-mini';
+      modelSel.appendChild(o);
     }
   }
 
   // Send via proxy
   async function send() {
     const text = promptEl.value.trim();
-    if (!text || !modelSel.value) return;
+    if (!text || !modelSel.value || sendBtn.disabled) return;
 
     promptEl.value = '';
     sendBtn.disabled = true;
@@ -254,14 +277,13 @@
     const thinking = addTyping();
 
     try {
+      const model = modelSel.value; // read at click time
+      console.log('Sending with model:', model);
+
       const r = await fetch('/api/straico/chat', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          model: modelSel.value,
-          messages: history,
-          stream: false
-        })
+        body: JSON.stringify({ model, messages: history, stream: false })
       });
 
       const payload = await r.text();
@@ -274,7 +296,8 @@
         return;
       }
 
-      const reply = data?.choices?.[0]?.message?.content
+      const reply =
+        data?.choices?.[0]?.message?.content
         || data?.response?.completion?.choices?.[0]?.message?.content
         || data?.response?.text
         || 'No content returned.';
@@ -282,7 +305,7 @@
       history.push({ role:'assistant', content: reply });
       addBubble(reply, 'ai');
 
-    } catch (e) {
+    } catch {
       thinking.remove();
       addBubble('Network error. Please try again.', 'ai');
     } finally {
@@ -291,13 +314,22 @@
     }
   }
 
+  // Events
   sendBtn.addEventListener('click', send);
   promptEl.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
+  refreshBtn.addEventListener('click', () => resetChat());
+  modelSel.addEventListener('change', () => {
+    resetChat();
+    const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
+    toast('Model selected: ' + label);
+    promptEl.focus();
+  });
 
   // Boot
   loadModels();
+  promptEl.focus();
 </script>
 </body>
 </html>
