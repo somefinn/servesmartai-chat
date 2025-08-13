@@ -69,18 +69,26 @@ export default async function handler(req, res) {
     }
 
     // Normalise likely response shapes to what your front end expects
-    const reply =
-      payload?.completion?.choices?.[0]?.message?.content // common Straico shape
-      ?? payload?.choices?.[0]?.message?.content          // alternative
-      ?? payload?.text                                    // some minimal shapes return plain text
-      ?? '';
+    const candidates = [
+      payload?.completion?.choices?.[0]?.message?.content,
+      payload?.data?.completion?.choices?.[0]?.message?.content,
+      payload?.response?.completion?.choices?.[0]?.message?.content,
+      payload?.choices?.[0]?.message?.content,
+      payload?.data?.choices?.[0]?.message?.content,
+      payload?.output,                     // some APIs return plain "output"
+      payload?.data?.output,
+      payload?.text                        // some minimal shapes return "text"
+    ];
+    const reply = candidates.find(v => typeof v === 'string' && v.trim().length > 0)
+      || (typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2));
 
     return res.status(200).json({
       ok: true,
       status: 200,
       response: payload,
-      choices: [{ message: { content: reply || ' ' } }]
+      choices: [{ message: { content: reply } }]
     });
+
 
   } catch (err) {
     return res.status(500).json({ error: 'Upstream error (proxy exception)', detail: String(err) });
