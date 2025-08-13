@@ -17,12 +17,28 @@ export default async function handler(req, res) {
     'https://api.straico.com/v0/prompt/completion'
   ];
 
-  // Bodies to try (most installs accept one of these)
-  const bodies = [
-    { model, prompt, temperature, max_tokens, stream: !!stream },   // common
-    { model, message: prompt, temperature, max_tokens, stream: !!stream }, // some use message
-    { model, input: prompt, temperature, max_tokens, stream: !!stream }    // some use input
-  ];
+  export const maxDuration = 60; // seconds
+
+const isReasoning = /(?:^|\/)(?:o1|o3|grok|r1)(?:-|:|$)/i.test(model);
+
+// Create a concentrated body that satisfies both shapes for reasoning models
+const joined = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+const lastUser = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+
+const bodies = isReasoning
+  ? [
+      { model, messages, message: lastUser, prompt: joined, input: joined, temperature, max_tokens, stream: !!stream },
+      { model, messages, temperature, max_tokens, stream: !!stream },
+      { model, message: lastUser, temperature, max_tokens, stream: !!stream },
+      { model, prompt: joined, temperature, max_tokens, stream: !!stream },
+      { model, input: joined, temperature, max_tokens, stream: !!stream }
+    ]
+  : [
+      { model, prompt: joined, temperature, max_tokens, stream: !!stream },
+      { model, message: joined, temperature, max_tokens, stream: !!stream },
+      { model, input: joined, temperature, max_tokens, stream: !!stream },
+      { model, messages, temperature, max_tokens, stream: !!stream }
+    ];
 
   async function call(url, body) {
     const r = await fetch(url, {
