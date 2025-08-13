@@ -1,56 +1,85 @@
+// ServeSmartAI → Straico proxy (safe: key stays on server)
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-  const { model, messages, temperature = 0.7, max_tokens = 512 } = req.body || {};
-  if (!model || !Array.isArray(messages)) return res.status(400).json({ error: 'Missing fields' });
+  const { model, messages, temperature = 0.7, max_tokens = 512, stream = false } = req.body || {};
+  if (!model || !Array.isArray(messages)) {
+    return res.status(400).json({ error: 'Missing fields: model or messages' });
+  }
 
   const key = process.env.STRAICO_API_KEY;
   if (!key) return res.status(500).json({ error: 'Server not configured' });
 
-  // v1 prompt/completion as you found
-  const url = process.env.STRAICO_CHAT_URL || 'https://api.straico.com/v1/prompt/completion';
+  // Join your chat history into one prompt string
+  const joinHistory = (msgs) =>
+    msgs.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
 
-  // Build a simple prompt from the chat history
-  // System (optional) then each user/assistant turn, then the latest user message
-  const toText = (msgs) => msgs.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
-  const prompt = toText(messages);
+  const prompt = joinHistory(messages);
 
-  // Straico expects model and prompt for prompt/completion
-  const body = {
-    model,                // e.g. "openai/gpt-4o-mini"
-    prompt,               // single text prompt
+  // Prefer v1, fall back to v0 if needed
+  const primaryUrl = process.env.STRAICO_CHAT_URL || 'https://api.straico.com/v1/prompt/completion';
+  const fallbackUrl = 'https://api.straico.com/v0/prompt/completion';
+
+  // Build a body that satisfies both possible shapes
+  const baseBody = {
+    model,                  // e.g. "openai/gpt-4o-mini" from your dropdown
+    input: prompt,          // many installs expect "input"
+    prompt,                 // others expect "prompt"
+    message: prompt,        // some examples use "message"
     temperature,
-    max_tokens
-    // You can add: files, image_urls, youtube_urls, display_transcripts, etc.
+    max_tokens,
+    stream: !!stream
   };
 
   try {
-    const upstream = await fetch(url, {
+    const first = await fetch(primaryUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${key}`
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(baseBody)
     });
 
+    // If v1 errors in a way that suggests wrong path or shape, try v0 automatically
+    let upstream = first;
+    if (!first.ok && (first.status === 404 || first.status === 422)) {
+      const second = await fetch(fallbackUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify(baseBody)
+      });
+      upstream = second;
+    }
+
     const text = await upstream.text();
-    let payload;
-    try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+    let payload; try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
 
-    // Normalise to your front end’s expectation
-    // Straico libs return something like completion.choices[0].message.content
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({
+        ok: false,
+        status: upstream.status,
+        response: payload
+      });
+    }
+
+    // Normalise likely response shapes to what your front end expects
     const reply =
-      payload?.completion?.choices?.[0]?.message?.content
-      ?? payload?.choices?.[0]?.message?.content
-      ?? payload?.text
-      ?? JSON.stringify(payload);
+      payload?.completion?.choices?.[0]?.message?.content // common Straico shape
+      ?? payload?.choices?.[0]?.message?.content          // alternative
+      ?? payload?.text                                    // some minimal shapes return plain text
+      ?? '';
 
-    return res.status(upstream.ok ? 200 : upstream.status).json({
-      ok: upstream.ok,
-      status: upstream.status,
+    return res.status(200).json({
+      ok: true,
+      status: 200,
       response: payload,
-      choices: [{ message: { content: reply } }]
+      choices: [{ message: { content: reply || ' ' } }]
     });
 
   } catch (err) {
