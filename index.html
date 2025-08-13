@@ -28,41 +28,12 @@
       linear-gradient(180deg, var(--bg), var(--bg-2));
   }
 
-/* centre the 3 dots inside the thinking bubble */
-.ai.typing{
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  height: 34px;             /* explicit box height */
-  padding: 6px 10px;        /* compact */
-  line-height: 0;           /* kill baseline shift */
-}
-.ai.typing .dot{ display:block; vertical-align: middle; }
-
-/* more space so the last bubble never kisses the input */
-.messages{
-  padding-bottom: 108px;     /* extra room at bottom */
-  scroll-padding-bottom: 108px;
-}
-
-  .ai.typing .dot{ vertical-align: middle; }
-
-/* slightly larger vertical gap between bubbles */
-.bubble{ margin: 10px 0; }
-
-/* kill the old sentence fade so there is no stutter */
-.rich .sentence{ animation: none !important; opacity: 1 !important; transform: none !important; }
-
-/* float the chat panel; a gap between header and panel */
-.wrap{ row-gap: 18px; }             /* space between header and panel */
-@media (min-width: 700px){
-  .wrap{ padding-top: 16px; }       /* extra top breathing room on desktop */
-}
-
-  /* Layout */
+  /* layout */
   .wrap{
     height:100dvh; min-height:100svh;
     display:grid; grid-template-rows:auto 1fr auto;
+    row-gap:18px;                 /* gap from header */
+    padding-top:16px;             /* float away from top */
   }
   header{
     backdrop-filter:saturate(150%) blur(8px);
@@ -92,31 +63,30 @@
   .panel{
     max-width:900px; width:100%;
     margin:0 auto;
-    height:100%; min-height:0;            /* allow inner scroll */
+    height:100%; min-height:0;
     display:grid; grid-template-rows:1fr auto;
     border:1px solid var(--ring); background:linear-gradient(180deg,#0f141c,#0e131a);
     border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,.45); overflow:hidden
   }
 
-  /* Messages area scrolls; page stays still */
   .messages{
     position:relative;
     padding:clamp(14px,2.5vw,20px);
+    padding-bottom:108px;             /* keep clear of composer */
+    scroll-padding-bottom:108px;
     height:100%; min-height:0; overflow:auto;
   }
-  /* top fade mask */
   .messages::before{
     content:""; position:sticky; top:0; left:0; right:0; height:64px;
     background:linear-gradient(180deg, var(--bg), rgba(15,17,21,0));
     pointer-events:none; z-index:2;
   }
 
-  /* Bubbles */
   .bubble{
     display:block;
-    width:fit-content;                     /* hug short replies */
+    width:fit-content;
     max-width:min(76ch, calc(100% - 32px));
-    border-radius:16px; padding:12px 14px; margin:8px 0; line-height:1.6;
+    border-radius:16px; padding:12px 14px; margin:10px 0; line-height:1.6;
     box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 10px 24px rgba(0,0,0,.25)
   }
   .user{ background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto }
@@ -124,14 +94,15 @@
 
   /* tiny centred thinking bubble */
   .ai.typing{
-    display:inline-flex; align-items:center; justify-content:center;
-    gap:6px; padding:8px 12px; width:fit-content; min-height:0;
+    display:flex !important; align-items:center !important; justify-content:center !important;
+    height:34px; padding:6px 10px; line-height:0;
+    gap:6px; width:fit-content; min-height:0;
   }
+  .ai.typing .dot{ display:block; vertical-align:middle; }
   .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
   .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
   @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
 
-  /* per-message actions */
   .bubble.ai{ position:relative; padding-bottom:34px }
   .actions{ position:absolute; left:12px; bottom:8px; display:flex; gap:6px; z-index:1 }
   .btn-mini{
@@ -141,21 +112,21 @@
   }
   .btn-mini:hover{ opacity:1 }
 
-  /* Markdown styling */
   .rich h1,.rich h2,.rich h3{ margin:8px 0 6px }
   .rich h1{ font-size:20px } .rich h2{ font-size:18px } .rich h3{ font-size:16px }
   .rich code{ background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.95em }
   .rich pre{ background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto }
   .rich ul{ padding-left:18px; margin:6px 0 } .rich li{ margin:2px 0 }
 
-  /* Composer */
   .composer{ border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118) }
   .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px; box-shadow:var(--shadow) }
   .input::placeholder{ color:var(--muted) }
   .send{ background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer; box-shadow:0 12px 30px rgba(106,166,255,.35) }
   .send:disabled{ opacity:.6; cursor:default }
 
-  /* Toast */
+  /* smooth sentence fade (opacity only) */
+  .rich .sentence{ transition: opacity .28s ease; }
+
   .toast{
     position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
     background:rgba(20,26,34,.9); color:var(--ink); border:1px solid var(--ring);
@@ -163,7 +134,6 @@
   }
   .toast.show{ opacity:1 }
 
-  /* Footer lower so it never overlaps the input */
   footer{ opacity:.55; font-size:12px; text-align:center; padding:18px 10px 28px }
 
   @media (max-width:560px){ .panel{ border-radius:0 } .messages{ padding-bottom:8px } }
@@ -213,10 +183,10 @@
   const refreshBtn= document.getElementById('refresh');
   const toastEl   = document.getElementById('toast');
 
-  // Conversation memory (raw, no system prompt)
+  // Conversation memory
   const history = [];
 
-  // -------- UI helpers --------
+  // UI helpers
   function addUserBubble(text){
     const b = document.createElement('div');
     b.className = 'bubble user';
@@ -225,7 +195,6 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
     history.push({ role:'user', content:text });
   }
-
   function addTyping(){
     const b = document.createElement('div');
     b.className = 'bubble ai typing';
@@ -234,15 +203,14 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
-
   function toast(msg){
     toastEl.textContent = msg;
     toastEl.classList.add('show');
     setTimeout(()=>toastEl.classList.remove('show'), 1600);
   }
 
+  // Basic markdown
   function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
   function mdToHtml(input){
     let s = escapeHtml(input);
     s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
@@ -261,113 +229,38 @@
     return s.replace(/<p><\/p>/g,'');
   }
 
-  // Smooth scroll that eases in and out
-function isNearBottom(px = 180){  // was 40; larger so auto-scroll keeps up
-  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
-}
-
-let scrollAnimId = 0;
-function smoothScrollToBottom(duration = 380){
-  cancelAnimationFrame(scrollAnimId);
-  const start = messagesEl.scrollTop;
-  const end = messagesEl.scrollHeight - messagesEl.clientHeight;
-  const t0 = performance.now();
-  const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
-  function frame(now){
-    const p = Math.min(1, (now - t0) / duration);
-    messagesEl.scrollTop = start + (end - start) * easeInOutCubic(p);
-    if (p < 1) scrollAnimId = requestAnimationFrame(frame);
+  // Smooth scroll helpers
+  function isNearBottom(px = 180){
+    return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
   }
-  scrollAnimId = requestAnimationFrame(frame);
-}
-
-  // Parse SSE "data: {...}" lines and pull any content-like field
-function extractEventContent(line){
-  try{
-    const j = JSON.parse(line);
-    return (
-      j?.choices?.[0]?.delta?.content ??
-      j?.choices?.[0]?.message?.content ??
-      j?.delta?.content ?? j?.content ?? j?.text ?? j?.completion ?? ''
-    );
-  }catch{ return ''; }
-}
-
-// Stream from proxy. If upstream does not stream, the proxy may simulate SSE.
-async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
-  const res = await fetch('/api/straico/chat', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ model, messages: historySoFar, stream:true })
-  });
-  if (!res.ok || !res.body) return null;
-
-  // swap dots for real bubble
-  const b = document.createElement('div'); b.className = 'bubble ai';
-  const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
-  const actions = document.createElement('div'); actions.className = 'actions';
-  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-  const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-  actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions);
-  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-
-  let buffer = '';
-  let pending = '';     // not yet shown
-  let revealed = '';    // already shown
-  let doneReading = false;
-
-  // stable typewriter that reveals at a constant rate
-  const cps = 85;       // chars per second, smooth and quick
-  let last = performance.now();
-  let rafId;
-
-  function tick(now){
-    const dt = (now - last) / 1000; last = now;
-    let take = Math.floor(cps * dt);
-    if (pending.length && take < 1) take = 1;
-
-    if (take > 0 && pending.length){
-      const chunk = pending.slice(0, take);
-      pending = pending.slice(take);
-      revealed += chunk;
-      rich.innerHTML = mdToHtml(revealed);
-      // keep the view following the reveal while user is near the bottom
-      if (isNearBottom()) smoothScrollToBottom(320);
+  let scrollAnimId = 0;
+  function smoothScrollToBottom(duration = 380){
+    cancelAnimationFrame(scrollAnimId);
+    const start = messagesEl.scrollTop;
+    const end = messagesEl.scrollHeight - messagesEl.clientHeight;
+    const t0 = performance.now();
+    const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+    function frame(now){
+      const p = Math.min(1, (now - t0) / duration);
+      messagesEl.scrollTop = start + (end - start) * easeInOutCubic(p);
+      if (p < 1) scrollAnimId = requestAnimationFrame(frame);
     }
-    if (!doneReading || pending.length){
-      rafId = requestAnimationFrame(tick);
-    } else {
-      cancelAnimationFrame(rafId);
-      history.push({ role:'assistant', content: revealed });
-      copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || revealed); toast('Copied'); };
-      regenBtn.onclick = () => regenerate(sourcePrompt, b);
-    }
-  }
-  rafId = requestAnimationFrame(tick);
-
-  while(true){
-    const { value, done } = await reader.read();
-    if (done){ doneReading = true; break; }
-    buffer += decoder.decode(value, { stream:true });
-    const parts = buffer.split(/\n\n/); buffer = parts.pop() || '';
-    for (const block of parts){
-      const line = block.replace(/^data:\s?/, '').trim();
-      if (!line || line === '[DONE]') continue;
-      const piece = extractEventContent(line);
-      if (piece) pending += piece;
-    }
+    scrollAnimId = requestAnimationFrame(frame);
   }
 
-  if (!revealed && !pending) return null;
-  return revealed || '';
-}
+  // SSE parsing
+  function extractEventContent(line){
+    try{
+      const j = JSON.parse(line);
+      return (
+        j?.choices?.[0]?.delta?.content ??
+        j?.choices?.[0]?.message?.content ??
+        j?.delta?.content ?? j?.content ?? j?.text ?? j?.completion ?? ''
+      );
+    }catch{ return ''; }
+  }
 
-  /* smooth sentence fade (opacity only) */
-.rich .sentence{ transition: opacity .28s ease; }
-
-  // Copy + Regenerate renderer (non-stream fallback)
+  // Non-stream fallback
   function showBotReply(reply, typingBubble, sourcePrompt){
     const b = document.createElement('div');
     b.className = 'bubble ai';
@@ -390,179 +283,178 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
     history.push({ role:'assistant', content:String(reply) });
   }
 
-// pull content from SSE lines
-function extractEventContent(line){
-  try{
-    const j = JSON.parse(line);
-    return (
-      j?.choices?.[0]?.delta?.content ??
-      j?.choices?.[0]?.message?.content ??
-      j?.delta?.content ?? j?.content ?? j?.text ?? j?.completion ?? ''
-    );
-  }catch{ return ''; }
-}
+  // Streaming with sentence fade and pinned scroll
+  function appendSentence(rich, text){
+    const span = document.createElement('div');
+    span.className = 'sentence';
+    span.style.opacity = '0';
+    span.style.transition = 'opacity .28s ease';
+    span.innerHTML = mdToHtml(text);
+    rich.appendChild(span);
+    requestAnimationFrame(()=>{ span.style.opacity = '1'; });
+  }
+  async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
+    const res = await fetch('/api/straico/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, messages: historySoFar, stream:true })
+    });
+    if (!res.ok || !res.body) return null;
 
-// tiny helper: append a sentence node with a gentle opacity fade
-function appendSentence(rich, text){
-  const span = document.createElement('div');
-  span.className = 'sentence';
-  span.style.opacity = '0';
-  span.style.transition = 'opacity .28s ease';
-  span.innerHTML = mdToHtml(text);
-  rich.appendChild(span);
-  requestAnimationFrame(()=>{ span.style.opacity = '1'; });
-}
+    // swap dots for real bubble
+    const b = document.createElement('div'); b.className = 'bubble ai';
+    const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+    actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions);
+    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
 
-// streaming with sentence-by-sentence fade and pinned scroll
-async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
-  const res = await fetch('/api/straico/chat', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ model, messages: historySoFar, stream:true })
-  });
-  if (!res.ok || !res.body) return null;
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
 
-  // swap dots for a real bubble
-  const b = document.createElement('div'); b.className = 'bubble ai';
-  const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
-  const actions = document.createElement('div'); actions.className = 'actions';
-  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-  const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-  actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions);
-  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+    let bufferSSE = '';
+    let working   = '';
+    let fullText  = '';
 
-  const reader  = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-
-  let bufferSSE = '';
-  let working   = '';   // current unflushed text
-  let fullText  = '';   // final text
-
-  // live area for the current, not-yet-complete sentence
-  let live = document.createElement('div');
-  live.className = 'sentence';
-  rich.appendChild(live);
-
-  function flushCompleteSentences(){
-    // find last end-of-sentence mark; keep any tail in 'working'
-    const idx = working.lastIndexOf('.') > working.lastIndexOf('!') ? working.lastIndexOf('.') : working.lastIndexOf('!');
-    const last = Math.max(idx, working.lastIndexOf('…'), working.lastIndexOf('?'));
-    if (last === -1) {
-      // update the live span without fade
-      live.innerHTML = mdToHtml(working);
-      if (isNearBottom(160)) messagesEl.scrollTop = messagesEl.scrollHeight;
-      return;
-    }
-    // split out the complete portion
-    const complete = working.slice(0, last + 1);
-    const remainder = working.slice(last + 1);
-
-    // remove live, append the complete bit with fade, then create a new live
-    rich.removeChild(live);
-    appendSentence(rich, complete);
-    fullText += complete;
-
-    live = document.createElement('div');
+    // live line
+    let live = document.createElement('div');
     live.className = 'sentence';
-    live.innerHTML = mdToHtml(remainder);
     rich.appendChild(live);
 
-    working = remainder;
-    if (isNearBottom(160)) messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
+    function flushComplete(){
+      const idxDot = working.lastIndexOf('.');
+      const idxExc = working.lastIndexOf('!');
+      const idxQue = working.lastIndexOf('?');
+      const idxEll = working.lastIndexOf('…');
+      const last = Math.max(idxDot, idxExc, idxQue, idxEll);
+      if (last === -1){
+        live.innerHTML = mdToHtml(working);
+        if (isNearBottom(160)) messagesEl.scrollTop = messagesEl.scrollHeight;
+        return;
+      }
+      const complete = working.slice(0, last + 1);
+      const remainder= working.slice(last + 1);
 
-  // animation-free pinning while text grows
-  function pinScroll(){
-    if (isNearBottom(160)) messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
+      rich.removeChild(live);
+      appendSentence(rich, complete);
+      fullText += complete;
 
-  while(true){
-    const { value, done } = await reader.read();
-    if (done) break;
+      live = document.createElement('div');
+      live.className = 'sentence';
+      live.innerHTML = mdToHtml(remainder);
+      rich.appendChild(live);
 
-    bufferSSE += decoder.decode(value, { stream:true });
-    const parts = bufferSSE.split(/\n\n/); bufferSSE = parts.pop() || '';
-    for (const block of parts){
-      const line = block.replace(/^data:\s?/, '').trim();
-      if (!line || line === '[DONE]') continue;
-      const piece = extractEventContent(line);
-      if (piece){
-        working += piece;
-        flushCompleteSentences();
-        pinScroll();
+      working = remainder;
+      if (isNearBottom(160)) messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    while(true){
+      const { value, done } = await reader.read();
+      if (done) break;
+      bufferSSE += decoder.decode(value, { stream:true });
+      const parts = bufferSSE.split(/\n\n/); bufferSSE = parts.pop() || '';
+      for (const block of parts){
+        const line = block.replace(/^data:\s?/, '').trim();
+        if (!line || line === '[DONE]') continue;
+        const piece = extractEventContent(line);
+        if (piece){
+          working += piece;
+          flushComplete();
+          if (isNearBottom(160)) messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
       }
     }
-  }
 
-  // flush whatever remains
-  if (working.trim()){
-    rich.removeChild(live);
-    appendSentence(rich, working);
-    fullText += working;
-  } else {
-    // ensure live is removed if empty
-    if (live && live.parentNode) live.parentNode.removeChild(live);
-  }
-
-  if (!fullText.trim()) return null;
-  history.push({ role:'assistant', content: fullText });
-
-  // wire actions
-  copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || fullText); toast('Copied'); };
-  regenBtn.onclick = () => regenerate(sourcePrompt, b);
-
-  return fullText;
-}
-
-
-  // Load models from your secure endpoint
- async function loadModels(){
-  try{
-    const r = await fetch('/api/straico/models');
-    const data = await r.json();
-    const list = Array.isArray(data?.data) ? data.data : [];
-
-    // group by provider (text before the slash)
-    const groups = {};
-    for (const m of list){
-      if (!m?.model) continue;
-      const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
-      (groups[prov] ||= []).push(m);
+    // flush remainder
+    if (working.trim()){
+      rich.removeChild(live);
+      appendSentence(rich, working);
+      fullText += working;
+    } else if (live && live.parentNode){
+      live.parentNode.removeChild(live);
     }
 
-    // order providers nicely
-    const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
-    const providers = Object.keys(groups).sort((a,b)=>{
-      const ia = order.indexOf(a), ib = order.indexOf(b);
-      return (ia === -1 && ib === -1) ? a.localeCompare(b) :
-             (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
-    });
+    if (!fullText.trim()) return null;
+    history.push({ role:'assistant', content: fullText });
+    copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || fullText); toast('Copied'); };
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    return fullText;
+  }
 
-    modelSel.innerHTML = '';
-    for (const prov of providers){
-      const og = document.createElement('optgroup');
-      const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
-      og.label = label;
-      for (const m of groups[prov]){
-        const o = document.createElement('option');
-        o.value = m.model;
-        o.textContent = m.name || m.model;
-        og.appendChild(o);
+  // Regenerate last assistant using same user prompt
+  async function regenerate(promptText, oldBubble){
+    if (!promptText || !oldBubble) return;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === 'assistant') { history.splice(i, 1); break; }
+    }
+    const t = addTyping();
+    messagesEl.insertBefore(t, oldBubble);
+    oldBubble.remove();
+
+    const model = modelSel.value;
+    let got = null;
+    try { got = await streamReply(model, history, t, promptText); } catch {}
+    if (got !== null) return;
+
+    try{
+      const r = await fetch('/api/straico/chat', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model, messages: history, stream:false })
+      });
+      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+      if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null); return; }
+      const reply =
+        data?.choices?.[0]?.message?.content
+        || data?.response?.completion?.choices?.[0]?.message?.content
+        || data?.response?.text || 'No content returned.';
+      showBotReply(reply, t, promptText);
+    } catch { t.remove(); showBotReply('Network error. Please try again.', null); }
+  }
+
+  // Grouped model loader
+  async function loadModels(){
+    try{
+      const r = await fetch('/api/straico/models');
+      const data = await r.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+
+      const groups = {};
+      for (const m of list){
+        if (!m?.model) continue;
+        const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
+        (groups[prov] ||= []).push(m);
       }
-      modelSel.appendChild(og);
+      const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
+      const providers = Object.keys(groups).sort((a,b)=>{
+        const ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia === -1 && ib === -1) ? a.localeCompare(b) :
+               (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
+      });
+
+      modelSel.innerHTML = '';
+      for (const prov of providers){
+        const og = document.createElement('optgroup');
+        const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
+        og.label = label;
+        for (const m of groups[prov]){
+          const o = document.createElement('option');
+          o.value = m.model; o.textContent = m.name || m.model;
+          og.appendChild(o);
+        }
+        modelSel.appendChild(og);
+      }
+      const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
+      const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
+      modelSel.value = found || modelSel.querySelector('option')?.value || '';
+    } catch {
+      modelSel.innerHTML = '';
+      const og = document.createElement('optgroup'); og.label = 'OpenAI';
+      const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini';
+      og.appendChild(o); modelSel.appendChild(og);
     }
-
-    const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
-    const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
-    modelSel.value = found || modelSel.querySelector('option')?.value || '';
-  } catch {
-    modelSel.innerHTML = '';
-    const og = document.createElement('optgroup'); og.label = 'OpenAI';
-    const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini';
-    og.appendChild(o); modelSel.appendChild(og);
   }
-}
 
-  // Send via proxy (stream first, fallback if needed)
+  // Send
   async function send(){
     const text = promptEl.value.trim();
     if (!text || !modelSel.value || sendBtn.disabled) return;
@@ -575,13 +467,10 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
 
     try{
       const model = modelSel.value;
-
-      // 1) streaming
       let got = null;
       try { got = await streamReply(model, history, thinking, text); } catch {}
       if (got !== null){ sendBtn.disabled = false; promptEl.focus(); return; }
 
-      // 2) non-stream
       const r = await fetch('/api/straico/chat', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ model, messages: history, stream:false })
@@ -598,7 +487,6 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
         || data?.response?.completion?.choices?.[0]?.message?.content
         || data?.response?.text || 'No content returned.';
       showBotReply(reply, thinking, text);
-
     } catch {
       thinking.remove();
       showBotReply('Network error. Please try again.', null);
@@ -615,7 +503,7 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
   modelSel.addEventListener('change', () => {
     const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
     toast('Model selected: ' + label);
-    promptEl.focus();  // keep context, do not reset history
+    promptEl.focus();
   });
 
   // Boot
