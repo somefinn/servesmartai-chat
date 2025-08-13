@@ -15,7 +15,6 @@
     --ink:#e9edf3; --muted:#9aa6b2;
     --ring:#263447; --accent:#6aa6ff; --accent-2:#7b7bff;
     --bubble-user:#1f2735; --bubble-ai:#121923;
-    --bubble-ai-bg:#121923; /* for typing bubble line below */
     --shadow:0 10px 30px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.02) inset;
   }
 
@@ -29,12 +28,10 @@
       linear-gradient(180deg, var(--bg), var(--bg-2));
   }
 
-  /* layout */
   .wrap{
     height:100dvh; min-height:100svh;
     display:grid; grid-template-rows:auto 1fr auto;
-    row-gap:18px;
-    padding-top:16px;
+    row-gap:18px; padding-top:16px;
   }
   header{
     backdrop-filter:saturate(150%) blur(8px);
@@ -73,8 +70,7 @@
   .messages{
     position:relative;
     padding:clamp(14px,2.5vw,20px);
-    padding-bottom:108px; /* keep clear of composer */
-    scroll-padding-bottom:108px;
+    padding-bottom:108px; scroll-padding-bottom:108px;
     height:100%; min-height:0; overflow:auto;
   }
   .messages::before{
@@ -93,7 +89,17 @@
   .user{ background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto }
   .ai{   background:var(--bubble-ai);   border:1px solid var(--ring); margin-right:auto }
 
-  /* actions space on final AI bubbles */
+  /* thinking bubble perfectly centred and compact */
+  .bubble.ai.typing{
+    display:grid; place-items:center;
+    height:34px; min-height:34px; padding:8px 12px;
+  }
+  .dots{ display:flex; align-items:center; justify-content:center; gap:6px }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
+  .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
+  @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
+
+  /* actions row on AI bubbles */
   .bubble.ai{ position:relative; padding-bottom:34px }
   .actions{ position:absolute; left:12px; bottom:8px; display:flex; gap:6px; z-index:1 }
   .btn-mini{
@@ -103,36 +109,7 @@
   }
   .btn-mini:hover{ opacity:1 }
 
-  /* thinking bubble centring */
-  .bubble.ai.typing{
-    display:grid !important;
-    place-items:center !important;
-    height:34px; min-height:34px;
-    line-height:0;
-    padding:8px 12px !important;
-    padding-bottom:8px !important;     /* cancel .bubble.ai bottom padding */
-    position:static !important;
-    background-color:var(--bubble-ai-bg);
-    border-radius:12px;
-  }
-  .bubble.ai.typing .dots{
-    display:flex; align-items:center; justify-content:center; gap:6px;
-  }
-  .bubble.ai.typing .dot{
-    width:6px; height:6px; border-radius:50%;
-    background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out;
-  }
-  .bubble.ai.typing .dot:nth-child(2){ animation-delay:.2s }
-  .bubble.ai.typing .dot:nth-child(3){ animation-delay:.4s }
-  @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
-
-  /* markdown look */
-  .rich h1,.rich h2,.rich h3{ margin:8px 0 6px }
-  .rich h1{ font-size:20px } .rich h2{ font-size:18px } .rich h3{ font-size:16px }
-  .rich code{ background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.95em }
-  .rich pre{ background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto }
-  .rich ul{ padding-left:18px; margin:6px 0 } .rich li{ margin:2px 0 }
-  .rich .sentence{ transition: opacity .28s ease; }
+  .rich .sentence{ transition:opacity .28s ease } /* smooth sentence fade */
 
   .composer{ border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118) }
   .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px; box-shadow:var(--shadow) }
@@ -148,7 +125,6 @@
   .toast.show{ opacity:1 }
 
   footer{ opacity:.55; font-size:12px; text-align:center; padding:18px 10px 28px }
-
   @media (max-width:560px){ .panel{ border-radius:0 } .messages{ padding-bottom:8px } }
 </style>
 </head>
@@ -177,7 +153,7 @@
   <main class="panel">
     <div id="messages" class="messages"></div>
     <div class="composer">
-      <input id="prompt" class="input" placeholder="Type..." autocomplete="off" />
+      <input id="prompt" class="input" placeholder="Write your message" autocomplete="off" />
       <button id="send" class="send">Send</button>
     </div>
   </main>
@@ -188,7 +164,7 @@
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
-  // ----- elements -----
+  // elements
   const modelSel  = document.getElementById('model');
   const messagesEl= document.getElementById('messages');
   const promptEl  = document.getElementById('prompt');
@@ -196,10 +172,18 @@
   const refreshBtn= document.getElementById('refresh');
   const toastEl   = document.getElementById('toast');
 
-  // ----- state -----
+  // conversation state
   const history = []; // [{role:'user'|'assistant', content:string}]
+  const memory  = { facts: {}, toString(){
+    const bits = [];
+    if (this.facts.name) bits.push(`User name: ${this.facts.name}`);
+    return bits.length ? `Context:\n${bits.join('\n')}\n\n` : '';
+  }};
 
-  // ----- tiny utils -----
+  // rough payload size guard to avoid sending megabytes
+  const MAX_CHARS = 18000;
+
+  // -------- utilities --------
   function toast(msg){
     toastEl.textContent = msg;
     toastEl.classList.add('show');
@@ -212,14 +196,12 @@
     messagesEl.appendChild(b);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     history.push({ role:'user', content:text });
+    learnFactsFromUser(text);
   }
   function addTyping(){
     const b = document.createElement('div');
     b.className = 'bubble ai typing';
-    b.innerHTML = `
-      <div class="dots">
-        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-      </div>`;
+    b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
     messagesEl.appendChild(b);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
@@ -257,33 +239,57 @@
     }
     requestAnimationFrame(frame);
   }
+  function appendSentence(rich, text){
+    const span = document.createElement('div');
+    span.className = 'sentence';
+    span.style.opacity = '0';
+    span.innerHTML = mdToHtml(text);
+    rich.appendChild(span);
+    requestAnimationFrame(()=>{ span.style.opacity = '1'; });
+  }
 
-  // ----- model routing -----
-  // Reasoning models (prompt/completion) vs chat models.
+  // pull key facts
+  function learnFactsFromUser(text){
+    // very simple name extractor
+    const m = text.match(/\bmy name is\s+([A-Za-z][A-Za-z'-]{1,40})\b/i);
+    if (m) memory.facts.name = m[1];
+  }
+
+  // model routing
   function isReasoningModel(id){
     if (!id) return false;
     const m = id.toLowerCase();
     return (
       m.includes(':thinking') ||
       m.includes('/o1') || m.includes('/o3') || m.includes('o3-') ||
-      m.includes('o4-mini') ||                       // if Straico exposes o4* as reasoning
       m.includes('deepseek-r1') ||
-      m.includes('nemotron-reason') ||
-      m.includes('reason')                           // generic catch for “reasoning”
+      m.includes('reason')
     );
   }
-
-  // Build a single prompt from the whole chat so far
-  function promptFromHistory(nextUser){
-    const lines = [];
-    for (const msg of history){
-      lines.push(`${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`);
-    }
-    lines.push(`User: ${nextUser}`);
-    return lines.join('\n');
+  // some providers label chat models but do not maintain state; we force serialisation
+  function looksStatelessChat(id){
+    const m = id.toLowerCase();
+    return m.includes('gemini-2.5-pro-preview') || m.includes('sonar') || m.includes('kimi-k2') || m.includes('grok-');
   }
 
-  // ----- renderers -----
+  // build serialised prompt from history plus memory
+  function promptFromHistory(nextUser){
+    const lines = [];
+    const mem = memory.toString();
+    if (mem) lines.push(mem.trim());
+    for (const turn of history){
+      lines.push(`${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.content}`);
+    }
+    lines.push(`User: ${nextUser}`);
+    let out = lines.join('\n');
+    if (out.length > MAX_CHARS){
+      // keep the last part if very long
+      out = mem + '\n' + out.slice(-MAX_CHARS);
+    }
+    return out;
+  }
+
+  // renderers
   function showBotReply(reply, typingBubble, sourcePrompt){
     const b = document.createElement('div');
     b.className = 'bubble ai';
@@ -303,17 +309,7 @@
     history.push({ role:'assistant', content:String(reply) });
   }
 
-  function appendSentence(rich, text){
-    const span = document.createElement('div');
-    span.className = 'sentence';
-    span.style.opacity = '0';
-    span.style.transition = 'opacity .28s ease';
-    span.innerHTML = mdToHtml(text);
-    rich.appendChild(span);
-    requestAnimationFrame(()=>{ span.style.opacity = '1'; });
-  }
-
-  // ----- streaming helpers -----
+  // SSE parsing
   function parseSSE(line){
     try{
       const j = JSON.parse(line);
@@ -325,15 +321,12 @@
     }catch{ return ''; }
   }
 
-  // Chat‑style stream (messages array)
+  // streaming with messages array
   async function streamChat(model, typingBubble){
-    const res = await fetch('/api/straico/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, messages: history, stream:true })
-    });
+    const payload = { model, messages: withMemory(history), stream:true };
+    const res = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     if (!res.ok || !res.body) return null;
 
-    // swap dots for bubble
     const b = document.createElement('div'); b.className = 'bubble ai';
     const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
     const actions = document.createElement('div'); actions.className = 'actions';
@@ -345,12 +338,6 @@
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '', working = '', full = '';
-    let firstChunkSeen = false;
-
-    // race: if no chunk within 1200ms, we bail (caller will fallback to non-stream)
-    let resolver;
-    const firstChunk = new Promise(r => resolver = r);
-    const lagTimer = setTimeout(()=> resolver(false), 1200);
 
     // live line
     let live = document.createElement('div'); live.className = 'sentence'; rich.appendChild(live);
@@ -365,10 +352,7 @@
         if (!line || line === '[DONE]') continue;
         const piece = parseSSE(line);
         if (piece){
-          if (!firstChunkSeen){ firstChunkSeen = true; clearTimeout(lagTimer); resolver(true); }
           working += piece;
-
-          // flush sentences as they complete
           const idx = Math.max(working.lastIndexOf('.'), working.lastIndexOf('!'), working.lastIndexOf('?'), working.lastIndexOf('…'));
           if (idx >= 0){
             const donePart = working.slice(0, idx+1);
@@ -386,8 +370,6 @@
         }
       }
     }
-
-    // final flush
     if (working.trim()){
       rich.removeChild(live);
       appendSentence(rich, working);
@@ -395,24 +377,18 @@
     } else if (live && live.parentNode){
       live.parentNode.removeChild(live);
     }
-
     if (!full.trim()) return null;
     copyBtn.onclick = ()=>{ navigator.clipboard.writeText(rich.innerText || full); toast('Copied'); };
-    regenBtn.onclick = ()=> regenerate(history.at(-2)?.content || '', b); // previous user msg
+    regenBtn.onclick = ()=> regenerate(history.at(-2)?.content || '', b);
     history.push({ role:'assistant', content: full });
-    return true; // streamed fine
+    return true;
   }
 
-  // Prompt/completion stream (single message string)
+  // streaming with single message string
   async function streamPrompt(model, message, typingBubble){
-    const res = await fetch('/api/straico/chat', {
-      // server should route payloads with `message` to Straico /prompt/completion
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, message, stream:true })
-    });
+    const res = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, message, stream:true }) });
     if (!res.ok || !res.body) return null;
 
-    // same rendering as chat stream
     const b = document.createElement('div'); b.className = 'bubble ai';
     const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
     const actions = document.createElement('div'); actions.className = 'actions';
@@ -424,7 +400,6 @@
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '', working = '', full = '';
-
     let live = document.createElement('div'); live.className = 'sentence'; rich.appendChild(live);
 
     while(true){
@@ -455,7 +430,6 @@
         }
       }
     }
-
     if (working.trim()){
       rich.removeChild(live);
       appendSentence(rich, working);
@@ -463,7 +437,6 @@
     } else if (live && live.parentNode){
       live.parentNode.removeChild(live);
     }
-
     if (!full.trim()) return null;
     copyBtn.onclick = ()=>{ navigator.clipboard.writeText(rich.innerText || full); toast('Copied'); };
     regenBtn.onclick = ()=> regenerate(history.at(-2)?.content || '', b);
@@ -471,39 +444,43 @@
     return true;
   }
 
-  // ----- non-stream fallbacks -----
+  // add memory as a system turn at the front if using messages[]
+  function withMemory(msgs){
+    if (!memory.toString()) return msgs;
+    const sys = { role:'system', content: memory.toString().trim() };
+    const arr = [sys, ...msgs];
+    // trim very long chats roughly
+    let textLen = arr.map(m=>m.content.length).reduce((a,b)=>a+b,0);
+    while (textLen > MAX_CHARS && arr.length > 3){
+      // drop the oldest user+assistant pair after the system
+      const idx = arr.findIndex((m,i)=> i>0 && m.role === 'user');
+      if (idx > 0) {
+        const slice = arr.splice(idx, 2);
+        textLen -= slice.map(m=>m.content.length).reduce((a,b)=>a+b,0);
+      } else break;
+    }
+    return arr;
+  }
+
+  // non streaming fallbacks
   async function nonStreamChat(model, typingBubble){
-    const r = await fetch('/api/straico/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, messages: history, stream:false })
-    });
+    const r = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, messages: withMemory(history), stream:false }) });
     const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-    if (!r.ok) { showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), typingBubble); return; }
-    const reply =
-      data?.choices?.[0]?.message?.content ||
-      data?.response?.completion?.choices?.[0]?.message?.content ||
-      data?.response?.text || 'No content returned.';
+    if (!r.ok){ showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), typingBubble); return; }
+    const reply = data?.choices?.[0]?.message?.content || data?.response?.completion?.choices?.[0]?.message?.content || data?.response?.text || 'No content returned.';
     showBotReply(reply, typingBubble, history.at(-1)?.content || '');
   }
-
   async function nonStreamPrompt(model, message, typingBubble){
-    const r = await fetch('/api/straico/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, message, stream:false })
-    });
+    const r = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, message, stream:false }) });
     const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-    if (!r.ok) { showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), typingBubble); return; }
-    const reply =
-      data?.choices?.[0]?.message?.content ||
-      data?.response?.completion?.choices?.[0]?.message?.content ||
-      data?.response?.text || 'No content returned.';
+    if (!r.ok){ showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), typingBubble); return; }
+    const reply = data?.choices?.[0]?.message?.content || data?.response?.completion?.choices?.[0]?.message?.content || data?.response?.text || 'No content returned.';
     showBotReply(reply, typingBubble, history.at(-1)?.content || '');
   }
 
-  // ----- regenerate -----
   async function regenerate(promptText, oldBubble){
     if (!promptText || !oldBubble) return;
-    // remove the last assistant turn
+    // remove last assistant
     for (let i = history.length - 1; i >= 0; i--) {
       if (history[i].role === 'assistant') { history.splice(i, 1); break; }
     }
@@ -512,7 +489,7 @@
     oldBubble.remove();
 
     const model = modelSel.value;
-    if (isReasoningModel(model)) {
+    if (isReasoningModel(model) || looksStatelessChat(model)){
       const message = promptFromHistory(promptText);
       const streamed = await streamPrompt(model, message, t);
       if (streamed === null) await nonStreamPrompt(model, message, t);
@@ -522,7 +499,7 @@
     }
   }
 
-  // ----- load models (grouped) -----
+  // model list
   async function loadModels(){
     try{
       const r = await fetch('/api/straico/models');
@@ -554,8 +531,6 @@
         }
         modelSel.appendChild(og);
       }
-
-      // sensible default
       const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
       const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
       modelSel.value = found || modelSel.querySelector('option')?.value || '';
@@ -567,7 +542,7 @@
     }
   }
 
-  // ----- send -----
+  // send
   async function send(){
     const text = promptEl.value.trim();
     if (!text || !modelSel.value || sendBtn.disabled) return;
@@ -580,38 +555,39 @@
 
     try{
       const model = modelSel.value;
+      const serialise = isReasoningModel(model) || looksStatelessChat(model);
 
-      if (isReasoningModel(model)) {
-        // prompt/completion path with full history as one string
-        const message = promptFromHistory(text);
-
-        // stream with “quick‑start” fallback if upstream buffers too long
-        let firstDone = false;
-        const fastFallback = setTimeout(async ()=>{
-          if (firstDone) return;
+      // quick start fallback if stream stalls
+      let firstDone = false;
+      const fallback = setTimeout(async ()=>{
+        if (firstDone) return;
+        if (serialise){
+          const message = promptFromHistory(text);
           await nonStreamPrompt(model, message, thinking);
-          sendBtn.disabled = false; promptEl.focus();
-        }, 1200);
-
-        const streamed = await streamPrompt(model, message, thinking);
-        firstDone = true; clearTimeout(fastFallback);
-        if (streamed === null) await nonStreamPrompt(model, message, thinking);
-
-      } else {
-        // normal chat path
-        let firstDone = false;
-        const fastFallback = setTimeout(async ()=>{
-          if (firstDone) return;
+        } else {
           await nonStreamChat(model, thinking);
-          sendBtn.disabled = false; promptEl.focus();
-        }, 1200);
+        }
+        sendBtn.disabled = false; promptEl.focus();
+      }, 1200);
 
-        const streamed = await streamChat(model, thinking);
-        firstDone = true; clearTimeout(fastFallback);
-        if (streamed === null) await nonStreamChat(model, thinking);
+      let streamed;
+      if (serialise){
+        const message = promptFromHistory(text);
+        streamed = await streamPrompt(model, message, thinking);
+      } else {
+        streamed = await streamChat(model, thinking);
+      }
+      firstDone = true; clearTimeout(fallback);
+      if (streamed === null){
+        if (serialise){
+          const message = promptFromHistory(text);
+          await nonStreamPrompt(model, message, thinking);
+        } else {
+          await nonStreamChat(model, thinking);
+        }
       }
 
-    } catch (e) {
+    } catch {
       thinking.remove();
       showBotReply('Network error. Please try again.', null);
     } finally {
@@ -620,16 +596,17 @@
     }
   }
 
-  // ----- events & boot -----
+  // events
   sendBtn.addEventListener('click', send);
   promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
-  refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
+  refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; memory.facts={}; toast('New chat started'); });
   modelSel.addEventListener('change', () => {
     const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
-    toast('Model selected: ' + label);   // no history reset; keep context
+    toast('Model selected: ' + label);
     promptEl.focus();
   });
 
+  // boot
   loadModels();
   promptEl.focus();
 </script>
