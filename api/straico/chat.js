@@ -28,19 +28,19 @@ export default async function handler(req, res) {
 
     // Bodies to try, in order
     const bodies = isReasoning
-      ? [
-          { model, messages, message: lastUser, prompt: joined, input: joined, temperature, max_tokens, stream: !!stream },
-          { model, messages, temperature, max_tokens, stream: !!stream },
-          { model, message: lastUser, temperature, max_tokens, stream: !!stream },
-          { model, prompt: joined, temperature, max_tokens, stream: !!stream },
-          { model, input: joined, temperature, max_tokens, stream: !!stream }
-        ]
-      : [
-          { model, prompt: joined, temperature, max_tokens, stream: !!stream },
-          { model, message: joined, temperature, max_tokens, stream: !!stream },
-          { model, input: joined, temperature, max_tokens, stream: !!stream },
-          { model, messages, temperature, max_tokens, stream: !!stream }
-        ];
+  ? [
+      { model, messages, message: lastUser, prompt: joined, input: joined, temperature, max_tokens, stream: !!stream },
+      { model, messages, temperature, max_tokens, stream: !!stream },
+      { model, prompt: joined, temperature, max_tokens, stream: !!stream },
+      { model, message: lastUser, temperature, max_tokens, stream: !!stream },
+      { model, input: joined, temperature, max_tokens, stream: !!stream }
+    ]
+  : [
+      { model, messages, temperature, max_tokens, stream: !!stream },   // moved to first
+      { model, prompt: joined, temperature, max_tokens, stream: !!stream },
+      { model, message: joined, temperature, max_tokens, stream: !!stream },
+      { model, input: joined, temperature, max_tokens, stream: !!stream }
+    ];
 
     async function call(url, body) {
       const r = await fetch(url, {
