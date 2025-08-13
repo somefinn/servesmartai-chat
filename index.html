@@ -131,13 +131,14 @@ html, body { height: 100%; overflow: hidden; }
 
   /* space for buttons */
 .bubble.ai { position: relative; padding-bottom: 34px; }
-.actions { position: absolute; left: 12px; bottom: 8px; display: flex; gap: 6px; }
+.actions { position: absolute; left: 12px; bottom: 8px; display: flex; gap: 6px; z-index: 1; }
 .btn-mini {
   background: #0c1118; color: var(--ink);
   border: 1px solid var(--ring); border-radius: 8px;
   padding: 4px 8px; font-size: 11px; cursor: pointer; opacity: .85;
 }
 .btn-mini:hover { opacity: 1; }
+
 
   /* Basic markdown styling */
   .rich h1,.rich h2,.rich h3{margin:8px 0 6px}
