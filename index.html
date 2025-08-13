@@ -364,6 +364,8 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
   return revealed || '';
 }
 
+  /* smooth sentence fade (opacity only) */
+.rich .sentence{ transition: opacity .28s ease; }
 
   // Copy + Regenerate renderer (non-stream fallback)
   function showBotReply(reply, typingBubble, sourcePrompt){
@@ -513,26 +515,52 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
 
 
   // Load models from your secure endpoint
-  async function loadModels(){
-    try{
-      const r = await fetch('/api/straico/models');
-      const data = await r.json();
-      const list = Array.isArray(data?.data) ? data.data : [];
-      modelSel.innerHTML = '';
-      list.forEach(m => {
-        if (!m?.model) return;
-        const o = document.createElement('option');
-        o.value = m.model; o.textContent = m.name || m.model;
-        modelSel.appendChild(o);
-      });
-      const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
-      const found = preferred.find(p => [...modelSel.options].some(o => o.value === p));
-      modelSel.value = found || modelSel.options[0]?.value || '';
-    } catch {
-      const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'openai/gpt-4o-mini';
-      modelSel.appendChild(o);
+ async function loadModels(){
+  try{
+    const r = await fetch('/api/straico/models');
+    const data = await r.json();
+    const list = Array.isArray(data?.data) ? data.data : [];
+
+    // group by provider (text before the slash)
+    const groups = {};
+    for (const m of list){
+      if (!m?.model) continue;
+      const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
+      (groups[prov] ||= []).push(m);
     }
+
+    // order providers nicely
+    const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
+    const providers = Object.keys(groups).sort((a,b)=>{
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 && ib === -1) ? a.localeCompare(b) :
+             (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
+    });
+
+    modelSel.innerHTML = '';
+    for (const prov of providers){
+      const og = document.createElement('optgroup');
+      const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
+      og.label = label;
+      for (const m of groups[prov]){
+        const o = document.createElement('option');
+        o.value = m.model;
+        o.textContent = m.name || m.model;
+        og.appendChild(o);
+      }
+      modelSel.appendChild(og);
+    }
+
+    const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
+    const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
+    modelSel.value = found || modelSel.querySelector('option')?.value || '';
+  } catch {
+    modelSel.innerHTML = '';
+    const og = document.createElement('optgroup'); og.label = 'OpenAI';
+    const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini';
+    og.appendChild(o); modelSel.appendChild(og);
   }
+}
 
   // Send via proxy (stream first, fallback if needed)
   async function send(){
