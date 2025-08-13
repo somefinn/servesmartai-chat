@@ -40,7 +40,7 @@
     </div>
   </header>
 
-  <div class="hint">Your key is safe. The browser talks to <code>/api/straico/chat</code> on Vercel, which adds the key server side.</div>
+  <div class="hint">Your key is safe. The browser talks to <code>/api/straico/chat</code> on Vercel, which adds the key on the server.</div>
 
   <main class="chat">
     <div id="messages" class="messages"></div>
@@ -52,12 +52,12 @@
 </div>
 
 <script>
-  // Add or rename to match the models Straico exposes in your account
+  // Use provider-scoped IDs for Straico prompt/completion
   const MODELS = [
-    { id: 'gpt-4o-mini', label: 'GPT 4o mini' },
-    { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
-    { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' },
-    { id: 'llama-3.3-70b-instruct', label: 'Llama 3.3 70B Instruct' }
+    { id: 'openai/gpt-4o-mini', label: 'GPT 4o mini (OpenAI)' },
+    { id: 'anthropic/claude-3-5-sonnet', label: 'Claude 3.5 Sonnet (Anthropic)' },
+    { id: 'meta/llama-3.3-70b-instruct', label: 'Llama 3.3 70B Instruct (Meta)' }
+    // Add or edit to match what your Straico account exposes
   ];
 
   const modelSel = document.getElementById('model');
@@ -84,6 +84,8 @@
     const text = promptEl.value.trim();
     if (!text) return;
     promptEl.value = '';
+    sendBtn.disabled = true;
+
     history.push({ role:'user', content:text });
     addBubble(text, 'user');
 
@@ -92,8 +94,8 @@
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({
-          model: modelSel.value,
-          messages: history,
+          model: modelSel.value,   // e.g. "openai/gpt-4o-mini"
+          messages: history,       // proxy will convert to a single prompt
           stream: false
         })
       });
@@ -110,6 +112,9 @@
       addBubble(reply, 'ai');
     } catch (e) {
       addBubble('Network error. Check the proxy or model id.', 'ai');
+    } finally {
+      sendBtn.disabled = false;
+      promptEl.focus();
     }
   }
 
