@@ -1,125 +1,147 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ServeSmartAI</title>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root { --bg:#0f1115; --panel:#151821; --ink:#e9ecf1; --muted:#9aa3b2; --accent:#6aa6ff; --ring:#263045; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--ink); }
-  .wrap { height:100svh; display:grid; grid-template-rows:auto 1fr auto; }
-  header { display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--ring); background:linear-gradient(180deg,#0f1115,#12151b); }
-  header img.logo { width:28px; height:28px; border-radius:6px; object-fit:cover; }
-  header h1 { font-size:16px; margin:0; font-weight:600; letter-spacing:.2px; }
-  .controls { margin-left:auto; display:flex; gap:10px; align-items:center; }
-  select, button { background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:10px; padding:10px 12px; font:inherit; }
-  select:focus, button:focus, input:focus { outline:2px solid var(--accent); outline-offset:2px; }
-  .chat { display:grid; grid-template-rows:1fr auto; max-width:980px; margin:0 auto; width:100%; }
-  .messages { padding:18px; overflow:auto; }
-  .bubble { max-width:80ch; padding:12px 14px; border-radius:14px; margin:8px 0; line-height:1.55; }
-  .user { background:#1d2230; border:1px solid var(--ring); margin-left:auto; }
-  .ai { background:#121620; border:1px solid var(--ring); white-space:pre-wrap; }
-  .composer { border-top:1px solid var(--ring); padding:12px; display:flex; gap:10px; align-items:center; background:linear-gradient(180deg,#11141b,#0f1115); }
-  .input { flex:1; background:var(--panel); border:1px solid var(--ring); border-radius:14px; padding:14px 16px; color:var(--ink); }
-  .input::placeholder { text-align:center; color:var(--muted); }
-  .send { padding:12px 16px; border-radius:12px; cursor:pointer; }
-  .hint { color:var(--muted); font-size:12px; padding:0 18px 8px; }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <header>
-    <img class="logo" src="logo.png" alt="ServeSmartAI">
-    <h1>ServeSmartAI</h1>
-    <div class="controls">
-      <label for="model" style="font-size:12px;color:var(--muted)">Model</label>
-      <select id="model"></select>
-    </div>
-  </header>
-
-  <div class="hint">Your key is safe. The browser talks to <code>/api/straico/chat</code> on Vercel, which adds the key on the server.</div>
-
-  <main class="chat">
-    <div id="messages" class="messages"></div>
-    <div class="composer">
-      <input id="prompt" class="input" placeholder="Write message" />
-      <button id="send" class="send">Send</button>
-    </div>
-  </main>
-</div>
-
 <script>
-  // Use provider-scoped IDs for Straico prompt/completion
-  const MODELS = [
-    { id: 'openai/gpt-4o-mini', label: 'GPT 4o mini (OpenAI)' },
-    { id: 'anthropic/claude-3-5-sonnet', label: 'Claude 3.5 Sonnet (Anthropic)' },
-    { id: 'meta/llama-3.3-70b-instruct', label: 'Llama 3.3 70B Instruct (Meta)' }
-    // Add or edit to match what your Straico account exposes
-  ];
+  document.addEventListener('DOMContentLoaded', () => {
+    const chatMessages = document.getElementById('chat-messages');
+    const userInput = document.getElementById('user-input');
+    const sendButton = document.getElementById('send-button');
+    const restartButton = document.getElementById('restart-chat');
+    const modelSelector = document.getElementById('model-selector');
 
-  const modelSel = document.getElementById('model');
-  MODELS.forEach(m => {
-    const o = document.createElement('option');
-    o.value = m.id; o.textContent = m.label;
-    modelSel.appendChild(o);
-  });
+    let messageHistory = [{ role: 'assistant', content: "Welcome to ServeSmartAI, let's get started..." }];
 
-  const messagesEl = document.getElementById('messages');
-  const promptEl = document.getElementById('prompt');
-  const sendBtn = document.getElementById('send');
-  const history = [{ role:'system', content:'You are a helpful assistant.' }];
-
-  function addBubble(text, who) {
-    const b = document.createElement('div');
-    b.className = 'bubble ' + (who === 'user' ? 'user' : 'ai');
-    b.textContent = text;
-    messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  async function send() {
-    const text = promptEl.value.trim();
-    if (!text) return;
-    promptEl.value = '';
-    sendBtn.disabled = true;
-
-    history.push({ role:'user', content:text });
-    addBubble(text, 'user');
-
-    try {
-      const r = await fetch('/api/straico/chat', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          model: modelSel.value,   // e.g. "openai/gpt-4o-mini"
-          messages: history,       // proxy will convert to a single prompt
-          stream: false
-        })
-      });
-
-      if (!r.ok) {
-        const t = await r.text();
-        addBubble('Error ' + r.status + ': ' + t, 'ai');
-        return;
+    // Utility
+    const addSpacer = () => { if (!chatMessages.querySelector('.spacer')) chatMessages.appendChild(Object.assign(document.createElement('div'), { className: 'spacer' })); };
+    const removeSpacer = () => { const s = chatMessages.querySelector('.spacer'); if (s) s.remove(); };
+    const scrollToBottom = (instant = false) => chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: instant ? 'instant' : 'smooth' });
+    const createCopyButton = () => {
+      const b = document.createElement('button');
+      b.className = 'copy-button';
+      b.title = 'Copy message';
+      b.onclick = () => {
+        const el = b.closest('.message')?.querySelector('.message-content');
+        if (!el) return;
+        navigator.clipboard.writeText(el.textContent || el.innerText);
+        const n = document.getElementById('copy-notification');
+        if (n) { n.style.opacity = '1'; setTimeout(() => n.style.opacity = '0', 2000); }
+      };
+      b.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+      return b;
+    };
+    const addBotBubble = (text, placeholderRefs) => {
+      const content = document.createElement('div');
+      content.className = 'message-content';
+      content.textContent = text.trim();
+      const copyBtn = createCopyButton();
+      if (placeholderRefs) {
+        const { messageDiv } = placeholderRefs;
+        messageDiv.innerHTML = '';
+        messageDiv.appendChild(content);
+        messageDiv.appendChild(copyBtn);
+      } else {
+        removeSpacer();
+        const g = document.createElement('div'); g.className = 'message-group';
+        const d = document.createElement('div'); d.className = 'message bot-message';
+        d.appendChild(content); d.appendChild(copyBtn); g.appendChild(d);
+        chatMessages.appendChild(g);
       }
+      messageHistory.push({ role: 'assistant', content: text.trim() });
+      addSpacer(); scrollToBottom();
+    };
+    const addUserBubble = (text) => {
+      removeSpacer();
+      const g = document.createElement('div'); g.className = 'message-group';
+      const d = document.createElement('div'); d.className = 'message user-message';
+      d.textContent = text; g.appendChild(d); chatMessages.appendChild(g);
+      messageHistory.push({ role: 'user', content: text });
+      addSpacer(); scrollToBottom();
+    };
+    const typingPlaceholder = () => {
+      removeSpacer();
+      const g = document.createElement('div'); g.className = 'message-group';
+      const d = document.createElement('div'); d.className = 'message bot-message';
+      const dots = document.createElement('div'); dots.className = 'typing-dots';
+      for (let i = 0; i < 3; i++) { const dot = document.createElement('span'); dot.className = 'typing-dot'; dots.appendChild(dot); }
+      d.appendChild(dots); g.appendChild(d); chatMessages.appendChild(g);
+      addSpacer(); scrollToBottom(); return { messageGroup: g, messageDiv: d };
+    };
 
-      const data = await r.json();
-      const reply = data?.choices?.[0]?.message?.content || JSON.stringify(data);
-      history.push({ role:'assistant', content: reply });
-      addBubble(reply, 'ai');
-    } catch (e) {
-      addBubble('Network error. Check the proxy or model id.', 'ai');
-    } finally {
-      sendBtn.disabled = false;
-      promptEl.focus();
+    // Load models from your secure endpoint
+    async function loadModels() {
+      try {
+        const r = await fetch('/api/straico/models');
+        const data = await r.json();
+        const list = Array.isArray(data?.data) ? data.data : [];
+        modelSelector.innerHTML = '';
+        list.forEach(m => {
+          if (!m?.model) return;
+          const opt = document.createElement('option');
+          opt.value = m.model;
+          opt.textContent = m.name || m.model;
+          modelSelector.appendChild(opt);
+        });
+        // Pick a sensible default if present
+        const preferred = 'openai/gpt-4o-mini';
+        const match = [...modelSelector.options].find(o => o.value === preferred);
+        modelSelector.value = match ? preferred : modelSelector.options[0]?.value;
+      } catch {
+        // Fallback if listing fails
+        ['openai/gpt-4o-mini'].forEach(id => {
+          const o = document.createElement('option'); o.value = id; o.textContent = id;
+          modelSelector.appendChild(o);
+        });
+      }
     }
-  }
 
-  sendBtn.addEventListener('click', send);
-  promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) send(); });
+    // Send via your Vercel proxy. Proxy converts messages -> prompt for Straico.
+    async function sendToProxy() {
+      const placeholder = typingPlaceholder();
+      try {
+        const r = await fetch('/api/straico/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: modelSelector.value,
+            messages: messageHistory,
+            stream: false
+          })
+        });
+        const raw = await r.text();
+        let data; try { data = JSON.parse(raw); } catch { data = { raw }; }
+        if (!r.ok) {
+          const msg = data?.response?.error || data?.error || raw;
+          addBotBubble(`Sorry, there was an error: ${msg}`, placeholder);
+          return;
+        }
+        const reply =
+          data?.choices?.[0]?.message?.content
+          || data?.response?.completion?.choices?.[0]?.message?.content
+          || data?.response?.text
+          || 'No content returned.';
+        addBotBubble(reply, placeholder);
+      } catch (e) {
+        addBotBubble('Network error. Please try again.', placeholder);
+      }
+    }
+
+    // Events
+    sendButton.addEventListener('click', () => {
+      const msg = userInput.value.trim();
+      if (!msg) return;
+      addUserBubble(msg);
+      userInput.value = ''; userInput.style.height = '30px';
+      sendToProxy();
+    });
+    userInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendButton.click(); }
+    });
+    restartButton?.addEventListener('click', () => {
+      chatMessages.innerHTML = ''; messageHistory = [];
+      messageHistory.push({ role: 'assistant', content: "Welcome to ServeSmartAI, let's get started..." });
+      addBotBubble("Welcome to ServeSmartAI, let's get started...");
+      userInput.value = '';
+    });
+
+    // Boot
+    addBotBubble("Welcome to ServeSmartAI, let's get started...");
+    loadModels();
+  });
 </script>
-</body>
-</html>
