@@ -28,6 +28,27 @@
       linear-gradient(180deg, var(--bg), var(--bg-2));
   }
 
+  /* centre the three dots perfectly */
+.ai.typing{
+  line-height: 0;           /* remove inherited 1.6 line-height that pushes dots up */
+  padding: 6px 10px;        /* compact */
+  align-items: center;
+  justify-content: center;
+}
+
+/* more space so the last bubble never kisses the input */
+.messages{
+  padding-bottom: 92px;     /* extra room at bottom */
+  scroll-padding-bottom: 92px;
+}
+
+/* slightly larger vertical gap between bubbles */
+.bubble{ margin: 10px 0; }
+
+/* kill the old sentence fade so there is no stutter */
+.rich .sentence{ animation: none !important; opacity: 1 !important; transform: none !important; }
+
+
   /* Layout */
   .wrap{
     height:100dvh; min-height:100svh;
@@ -230,24 +251,109 @@
     return s.replace(/<p><\/p>/g,'');
   }
 
-  // Smooth scroll helpers
-  function isNearBottom(px = 40){
-    return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+  // Smooth scroll that eases in and out
+function isNearBottom(px = 180){  // was 40; larger so auto-scroll keeps up
+  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+}
+
+let scrollAnimId = 0;
+function smoothScrollToBottom(duration = 380){
+  cancelAnimationFrame(scrollAnimId);
+  const start = messagesEl.scrollTop;
+  const end = messagesEl.scrollHeight - messagesEl.clientHeight;
+  const t0 = performance.now();
+  const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+  function frame(now){
+    const p = Math.min(1, (now - t0) / duration);
+    messagesEl.scrollTop = start + (end - start) * easeInOutCubic(p);
+    if (p < 1) scrollAnimId = requestAnimationFrame(frame);
   }
-  let scrollAnimId = 0;
-  function smoothScrollToBottom(duration = 450){
-    cancelAnimationFrame(scrollAnimId);
-    const start = messagesEl.scrollTop;
-    const end = messagesEl.scrollHeight - messagesEl.clientHeight;
-    const t0 = performance.now();
-    const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
-    function frame(now){
-      const p = Math.min(1, (now - t0) / duration);
-      messagesEl.scrollTop = start + (end - start) * easeInOutCubic(p);
-      if (p < 1) scrollAnimId = requestAnimationFrame(frame);
+  scrollAnimId = requestAnimationFrame(frame);
+}
+
+  // Parse SSE "data: {...}" lines and pull any content-like field
+function extractEventContent(line){
+  try{
+    const j = JSON.parse(line);
+    return (
+      j?.choices?.[0]?.delta?.content ??
+      j?.choices?.[0]?.message?.content ??
+      j?.delta?.content ?? j?.content ?? j?.text ?? j?.completion ?? ''
+    );
+  }catch{ return ''; }
+}
+
+// Stream from proxy. If upstream does not stream, the proxy may simulate SSE.
+async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
+  const res = await fetch('/api/straico/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ model, messages: historySoFar, stream:true })
+  });
+  if (!res.ok || !res.body) return null;
+
+  // swap dots for real bubble
+  const b = document.createElement('div'); b.className = 'bubble ai';
+  const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
+  const actions = document.createElement('div'); actions.className = 'actions';
+  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+  const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+  actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions);
+  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+
+  let buffer = '';
+  let pending = '';     // not yet shown
+  let revealed = '';    // already shown
+  let doneReading = false;
+
+  // stable typewriter that reveals at a constant rate
+  const cps = 85;       // chars per second, smooth and quick
+  let last = performance.now();
+  let rafId;
+
+  function tick(now){
+    const dt = (now - last) / 1000; last = now;
+    let take = Math.floor(cps * dt);
+    if (pending.length && take < 1) take = 1;
+
+    if (take > 0 && pending.length){
+      const chunk = pending.slice(0, take);
+      pending = pending.slice(take);
+      revealed += chunk;
+      rich.innerHTML = mdToHtml(revealed);
+      // keep the view following the reveal while user is near the bottom
+      if (isNearBottom()) smoothScrollToBottom(320);
     }
-    scrollAnimId = requestAnimationFrame(frame);
+    if (!doneReading || pending.length){
+      rafId = requestAnimationFrame(tick);
+    } else {
+      cancelAnimationFrame(rafId);
+      history.push({ role:'assistant', content: revealed });
+      copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || revealed); toast('Copied'); };
+      regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    }
   }
+  rafId = requestAnimationFrame(tick);
+
+  while(true){
+    const { value, done } = await reader.read();
+    if (done){ doneReading = true; break; }
+    buffer += decoder.decode(value, { stream:true });
+    const parts = buffer.split(/\n\n/); buffer = parts.pop() || '';
+    for (const block of parts){
+      const line = block.replace(/^data:\s?/, '').trim();
+      if (!line || line === '[DONE]') continue;
+      const piece = extractEventContent(line);
+      if (piece) pending += piece;
+    }
+  }
+
+  if (!revealed && !pending) return null;
+  return revealed || '';
+}
+
 
   // Copy + Regenerate renderer (non-stream fallback)
   function showBotReply(reply, typingBubble, sourcePrompt){
