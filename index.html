@@ -1,36 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ServeSmartAI</title>
+<style>
+  /* Container and layout */
+  .straico-chat-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 20px auto;
+    font-family: Arial, sans-serif;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 550px;
+    background: #fff;
+  }
+
+  .chat-header {
+    background-color: #4a90e2;
+    color: #fff;
+    padding: 10px 15px;
+    text-align: center;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .chat-header h2 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+  }
+
+  .model-selector-wrapper {
+    margin: 5px auto 0;
+    max-width: 60%;
+  }
+
+  #model-selector {
+    width: 100%;
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background-color: rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 11px;
+    outline: none;
+  }
+
+  #model-selector option { background: #fff; color: #333; }
+
+  .restart-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 15px;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center; justify-content: center;
+    cursor: pointer; color: #fff;
+    transition: background-color .2s;
+  }
+  .restart-button:hover { background: rgba(255,255,255,0.35); }
+  .restart-button svg { width: 16px; height: 16px; }
+
+  .chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background: #f9f9f9;
+    display: flex;
+    flex-direction: column;
+    scroll-behaviour: smooth;
+  }
+  .spacer { flex-shrink: 0; }
+
+  .message-group { margin-bottom: 10px; display: flex; width: 100%; }
+  .message {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 18px;
+    word-wrap: break-word;
+    animation: fadeIn .25s ease-in;
+    position: relative;
+    box-sizing: border-box;
+    line-height: 1.4;
+  }
+  @keyframes fadeIn { from {opacity:0; transform:scale(.98);} to {opacity:1; transform:scale(1);} }
+  .user-message {
+    background: #d1eaff; color:#333; border-bottom-right-radius: 5px; margin-left: auto;
+  }
+  .message-group:has(.user-message) { justify-content: flex-end; }
+
+  .bot-message {
+    background: #f0f0f0; color:#333; border-bottom-left-radius: 5px; margin-right: auto; white-space: pre-line;
+  }
+  .message-group:has(.bot-message) { justify-content: flex-start; }
+
+  .chat-input-container {
+    display: flex; padding: 10px 15px; border-top: 1px solid #ddd; background: #fff; flex-shrink: 0; align-items: center;
+  }
+  #user-input {
+    flex-grow: 1; padding: 5px 15px; border: 1px solid #ccc; border-radius: 20px; outline: none; resize: none; overflow-y: auto;
+    min-height: 30px; height: 30px; max-height: 100px; font-size: 14px; line-height: 1.4; box-sizing: border-box;
+  }
+  #send-button {
+    background: #4a90e2; color:#fff; border: none; padding: 0 15px; margin-left: 10px; border-radius: 20px;
+    cursor: pointer; height: 40px; flex-shrink: 0; font-size: 14px; transition: background-color .2s;
+  }
+  #send-button:hover { background: #3a7bc8; }
+
+  .typing-dots {
+    display: flex; align-items: center; height: 20px; padding: 0 5px;
+  }
+  .typing-dot { width:6px; height:6px; border-radius:50%; background:#999; margin:0 2px; animation: typingDot 1.2s infinite ease-in-out both; }
+  .typing-dot:nth-child(1){animation-delay:0s;} .typing-dot:nth-child(2){animation-delay:.2s;} .typing-dot:nth-child(3){animation-delay:.4s;}
+  @keyframes typingDot { 0%,80%,100% {transform:scale(0);} 40% {transform:scale(1);} }
+
+  .message-content { display:inline-block; }
+  .message-content strong { font-weight:700; }
+
+  .copy-button {
+    position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.05);
+    border: none; cursor: pointer; opacity: .6; padding: 0; width: 22px; height: 22px; display: none; border-radius: 4px; color:#555;
+    transition: opacity .2s, background-color .2s;
+  }
+  .copy-button:hover { opacity: 1; background: rgba(0,0,0,0.1); }
+  .bot-message:hover .copy-button { display: flex; align-items: center; justify-content: center; }
+
+  .copy-notification {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; background: rgba(0,0,0,0.75); color:#fff; border-radius: 4px; font-size: 13px; opacity: 0;
+    transition: opacity .3s ease-in-out; pointer-events: none; z-index: 1000;
+  }
+</style>
+</head>
+<body>
+<div class="straico-chat-container">
+  <div class="chat-header">
+    <h2>ServeSmartAI</h2>
+    <div class="model-selector-wrapper" title="Choose a model">
+      <select id="model-selector"></select>
+    </div>
+    <button id="restart-chat" class="restart-button" title="Start new conversation">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div class="chat-messages" id="chat-messages"></div>
+
+  <div class="chat-input-container">
+    <textarea id="user-input" placeholder="Type your message here..."></textarea>
+    <button id="send-button">Send</button>
+  </div>
+
+  <div id="copy-notification" class="copy-notification">Copied to clipboard</div>
+</div>
+
 <script>
   document.addEventListener('DOMContentLoaded', () => {
+    // DOM
     const chatMessages = document.getElementById('chat-messages');
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
+    const copyNotification = document.getElementById('copy-notification');
     const restartButton = document.getElementById('restart-chat');
     const modelSelector = document.getElementById('model-selector');
 
-    let messageHistory = [{ role: 'assistant', content: "Welcome to ServeSmartAI, let's get started..." }];
+    // State
+    let messageHistory = [];
 
-    // Utility
-    const addSpacer = () => { if (!chatMessages.querySelector('.spacer')) chatMessages.appendChild(Object.assign(document.createElement('div'), { className: 'spacer' })); };
-    const removeSpacer = () => { const s = chatMessages.querySelector('.spacer'); if (s) s.remove(); };
+    // Helpers
+    const addSpacer = () => {
+      if (!chatMessages.querySelector('.spacer')) {
+        const s = document.createElement('div'); s.className = 'spacer'; chatMessages.appendChild(s);
+      }
+    };
+    const removeSpacer = () => {
+      const s = chatMessages.querySelector('.spacer'); if (s) s.remove();
+    };
     const scrollToBottom = (instant = false) => chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: instant ? 'instant' : 'smooth' });
+
     const createCopyButton = () => {
-      const b = document.createElement('button');
-      b.className = 'copy-button';
-      b.title = 'Copy message';
-      b.onclick = () => {
-        const el = b.closest('.message')?.querySelector('.message-content');
+      const btn = document.createElement('button');
+      btn.className = 'copy-button';
+      btn.title = 'Copy message';
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+      btn.onclick = () => {
+        const el = btn.closest('.message')?.querySelector('.message-content');
         if (!el) return;
         navigator.clipboard.writeText(el.textContent || el.innerText);
-        const n = document.getElementById('copy-notification');
-        if (n) { n.style.opacity = '1'; setTimeout(() => n.style.opacity = '0', 2000); }
+        copyNotification.style.opacity = '1';
+        setTimeout(() => copyNotification.style.opacity = '0', 2000);
       };
-      b.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-      return b;
+      return btn;
     };
+
+    const typingPlaceholder = () => {
+      removeSpacer();
+      const g = document.createElement('div'); g.className = 'message-group';
+      const d = document.createElement('div'); d.className = 'message bot-message';
+      const dots = document.createElement('div'); dots.className = 'typing-dots';
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('span'); dot.className = 'typing-dot'; dots.appendChild(dot);
+      }
+      d.appendChild(dots); g.appendChild(d); chatMessages.appendChild(g);
+      addSpacer(); scrollToBottom(); return { messageGroup: g, messageDiv: d };
+    };
+
+    const addUserBubble = (text) => {
+      removeSpacer();
+      const g = document.createElement('div'); g.className = 'message-group';
+      const d = document.createElement('div'); d.className = 'message user-message';
+      d.textContent = text; g.appendChild(d); chatMessages.appendChild(g);
+      messageHistory.push({ role: 'user', content: text });
+      addSpacer(); scrollToBottom();
+    };
+
     const addBotBubble = (text, placeholderRefs) => {
-      const content = document.createElement('div');
-      content.className = 'message-content';
+      const content = document.createElement('div'); content.className = 'message-content';
       content.textContent = text.trim();
       const copyBtn = createCopyButton();
+
       if (placeholderRefs) {
         const { messageDiv } = placeholderRefs;
         messageDiv.innerHTML = '';
@@ -40,29 +244,14 @@
         removeSpacer();
         const g = document.createElement('div'); g.className = 'message-group';
         const d = document.createElement('div'); d.className = 'message bot-message';
-        d.appendChild(content); d.appendChild(copyBtn); g.appendChild(d);
-        chatMessages.appendChild(g);
+        d.appendChild(content); d.appendChild(copyBtn); g.appendChild(d); chatMessages.appendChild(g);
       }
       messageHistory.push({ role: 'assistant', content: text.trim() });
       addSpacer(); scrollToBottom();
     };
-    const addUserBubble = (text) => {
-      removeSpacer();
-      const g = document.createElement('div'); g.className = 'message-group';
-      const d = document.createElement('div'); d.className = 'message user-message';
-      d.textContent = text; g.appendChild(d); chatMessages.appendChild(g);
-      messageHistory.push({ role: 'user', content: text });
-      addSpacer(); scrollToBottom();
-    };
-    const typingPlaceholder = () => {
-      removeSpacer();
-      const g = document.createElement('div'); g.className = 'message-group';
-      const d = document.createElement('div'); d.className = 'message bot-message';
-      const dots = document.createElement('div'); dots.className = 'typing-dots';
-      for (let i = 0; i < 3; i++) { const dot = document.createElement('span'); dot.className = 'typing-dot'; dots.appendChild(dot); }
-      d.appendChild(dots); g.appendChild(d); chatMessages.appendChild(g);
-      addSpacer(); scrollToBottom(); return { messageGroup: g, messageDiv: d };
-    };
+
+    const welcome = "Welcome to ServeSmartAI, let's get started...";
+    addBotBubble(welcome);
 
     // Load models from your secure endpoint
     async function loadModels() {
@@ -78,20 +267,18 @@
           opt.textContent = m.name || m.model;
           modelSelector.appendChild(opt);
         });
-        // Pick a sensible default if present
+        // pick a sensible default if available
         const preferred = 'openai/gpt-4o-mini';
         const match = [...modelSelector.options].find(o => o.value === preferred);
         modelSelector.value = match ? preferred : modelSelector.options[0]?.value;
-      } catch {
-        // Fallback if listing fails
-        ['openai/gpt-4o-mini'].forEach(id => {
-          const o = document.createElement('option'); o.value = id; o.textContent = id;
-          modelSelector.appendChild(o);
-        });
+      } catch (e) {
+        // fallback if listing fails
+        const opt = document.createElement('option'); opt.value = 'openai/gpt-4o-mini'; opt.textContent = 'openai/gpt-4o-mini';
+        modelSelector.appendChild(opt);
       }
     }
 
-    // Send via your Vercel proxy. Proxy converts messages -> prompt for Straico.
+    // Send via your Vercel proxy (keeps key on server)
     async function sendToProxy() {
       const placeholder = typingPlaceholder();
       try {
@@ -100,17 +287,19 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: modelSelector.value,
-            messages: messageHistory,
+            messages: messageHistory,  // proxy will convert to prompt for Straico
             stream: false
           })
         });
         const raw = await r.text();
         let data; try { data = JSON.parse(raw); } catch { data = { raw }; }
+
         if (!r.ok) {
           const msg = data?.response?.error || data?.error || raw;
           addBotBubble(`Sorry, there was an error: ${msg}`, placeholder);
           return;
         }
+
         const reply =
           data?.choices?.[0]?.message?.content
           || data?.response?.completion?.choices?.[0]?.message?.content
@@ -123,6 +312,12 @@
     }
 
     // Events
+    userInput.addEventListener('input', function() {
+      const initial = 30; const maxH = 100;
+      this.style.height = initial + 'px';
+      this.style.height = Math.min(this.scrollHeight, maxH) + 'px';
+    });
+
     sendButton.addEventListener('click', () => {
       const msg = userInput.value.trim();
       if (!msg) return;
@@ -130,18 +325,21 @@
       userInput.value = ''; userInput.style.height = '30px';
       sendToProxy();
     });
+
     userInput.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendButton.click(); }
     });
-    restartButton?.addEventListener('click', () => {
-      chatMessages.innerHTML = ''; messageHistory = [];
-      messageHistory.push({ role: 'assistant', content: "Welcome to ServeSmartAI, let's get started..." });
-      addBotBubble("Welcome to ServeSmartAI, let's get started...");
-      userInput.value = '';
+
+    restartButton.addEventListener('click', () => {
+      chatMessages.innerHTML = '';
+      messageHistory = [];
+      addBotBubble(welcome);
+      userInput.value = ''; userInput.style.height = '30px';
     });
 
     // Boot
-    addBotBubble("Welcome to ServeSmartAI, let's get started...");
     loadModels();
   });
 </script>
+</body>
+</html>
