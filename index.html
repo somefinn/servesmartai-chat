@@ -5,155 +5,102 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ServeSmartAI</title>
 
-<!-- Modern font -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
 <style>
   :root{
-    /* Neutral glassy theme with a calm accent */
-    --bg: #0f1115;
-    --bg-2: #0c0f14;
-    --panel: #141a22;
-    --surface: #161d27;
-    --ink: #e9edf3;
-    --muted: #9aa6b2;
-    --ring: #263447;
-    --accent: #6aa6ff;
-    --accent-2: #7b7bff;
-    --bubble-user: #1f2735;
-    --bubble-ai: #121923;
-    --shadow: 0 10px 30px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.02) inset;
+    --bg:#0f1115; --bg-2:#0c0f14;
+    --panel:#141a22; --surface:#161d27;
+    --ink:#e9edf3; --muted:#9aa6b2;
+    --ring:#263447; --accent:#6aa6ff; --accent-2:#7b7bff;
+    --bubble-user:#1f2735; --bubble-ai:#121923;
+    --shadow:0 10px 30px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.02) inset;
   }
-
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0;
-    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    color: var(--ink);
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink);
     background:
       radial-gradient(1400px 900px at 10% -10%, #25324a 0%, transparent 60%),
       radial-gradient(1000px 800px at 110% -10%, #1d2b45 0%, transparent 55%),
       linear-gradient(180deg, var(--bg), var(--bg-2));
   }
 
-  /* Layout */
-  .wrap { min-height: 100svh; display: grid; grid-template-rows: auto 1fr auto; }
-  header {
-    backdrop-filter: saturate(150%) blur(8px);
-    background: linear-gradient(180deg, rgba(26,34,45,.65), rgba(20,26,34,.65));
-    border-bottom: 1px solid var(--ring);
-    padding: 14px clamp(14px, 2.5vw, 22px);
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 12px;
-    align-items: center;
+  .wrap{min-height:100svh; display:grid; grid-template-rows:auto 1fr auto}
+  header{
+    backdrop-filter:saturate(150%) blur(8px);
+    background:linear-gradient(180deg, rgba(26,34,45,.65), rgba(20,26,34,.65));
+    border-bottom:1px solid var(--ring);
+    padding:14px clamp(14px,2.5vw,22px);
+    display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center;
   }
+  .brand{display:flex; align-items:center; gap:10px}
+  .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 8px 20px rgba(106,166,255,.35)}
+  .title{margin:0; font-weight:600; font-size:15px; letter-spacing:.2px; color:var(--ink); opacity:.95}
 
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 8px 20px rgba(106,166,255,.35); }
-  .title { margin: 0; font-weight: 600; font-size: 15px; letter-spacing: .2px; color: var(--ink); opacity: .95; }
-
-  .controls { display: flex; align-items: center; gap: 10px; }
-  .select {
-    appearance: none;
-    background: var(--panel);
-    color: var(--ink);
-    border: 1px solid var(--ring);
-    border-radius: 999px;
-    padding: 10px 40px 10px 14px;
-    font: inherit; font-size: 13px;
-    position: relative;
-    box-shadow: var(--shadow);
+  .controls{display:flex; align-items:center; gap:10px}
+  .select{
+    appearance:none; background:var(--panel); color:var(--ink);
+    border:1px solid var(--ring); border-radius:999px;
+    padding:10px 40px 10px 14px; font:inherit; font-size:13px; box-shadow:var(--shadow)
   }
-  .select:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .chev { pointer-events: none; margin-left: -34px; width: 12px; opacity: .7; }
-
+  .select:focus{outline:2px solid var(--accent); outline-offset:2px}
+  .chev{pointer-events:none; margin-left:-34px; width:12px; opacity:.7}
   .refresh{
-    background: var(--panel);
-    color: var(--ink);
-    border: 1px solid var(--ring);
-    border-radius: 999px;
-    width: 36px; height: 36px;
-    display: grid; place-items: center;
-    margin-left: 6px;
-    cursor: pointer;
-    box-shadow: var(--shadow);
+    background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px;
+    width:36px; height:36px; display:grid; place-items:center; margin-left:6px; cursor:pointer; box-shadow:var(--shadow)
   }
-  .refresh:hover{ filter: brightness(1.1); }
+  .refresh:hover{filter:brightness(1.1)}
 
-  /* Chat panel */
-  .panel {
-    max-width: 900px; margin: 18px auto; width: 100%;
-    display: grid; grid-template-rows: 1fr auto;
-    border: 1px solid var(--ring);
-    background: linear-gradient(180deg, #0f141c, #0e131a);
-    border-radius: 18px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.45);
-    overflow: hidden;
+  .panel{
+    max-width:900px; margin:18px auto; width:100%;
+    display:grid; grid-template-rows:1fr auto;
+    border:1px solid var(--ring); background:linear-gradient(180deg,#0f141c,#0e131a);
+    border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,.45); overflow:hidden
   }
+  .messages{padding:clamp(14px,2.5vw,20px); overflow:auto}
+  .bubble{
+    max-width:76ch; border-radius:16px; padding:12px 14px; margin:8px 0; line-height:1.6;
+    box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 10px 24px rgba(0,0,0,.25)
+  }
+  .user{background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto}
+  .ai{background:var(--bubble-ai); border:1px solid var(--ring)}
+  .ai .copy{display:none; float:right; margin-left:8px; font-size:12px; opacity:.65; cursor:pointer}
+  .ai:hover .copy{display:inline-block}
 
-  .messages { padding: clamp(14px, 2.5vw, 20px); overflow: auto; }
-  .bubble {
-    max-width: 76ch;
-    border-radius: 16px;
-    padding: 12px 14px;
-    margin: 8px 0;
-    line-height: 1.6;
-    box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 10px 24px rgba(0,0,0,.25);
-  }
-  .user  { background: var(--bubble-user); border: 1px solid var(--ring); margin-left: auto; }
-  .ai    { background: var(--bubble-ai);   border: 1px solid var(--ring); }
-  .ai .copy {
-    display: none; position: relative; float: right; margin-left: 8px;
-    font-size: 12px; opacity: .65; cursor: pointer;
-  }
-  .ai:hover .copy { display: inline-block; }
+  /* Thinking bubble animation */
+  .ai.typing{display:inline-flex; align-items:center; gap:6px; padding:12px 14px}
+  .dot{width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out}
+  .dot:nth-child(2){animation-delay:.2s} .dot:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)}}
 
-  .composer {
-    border-top: 1px solid var(--ring);
-    display: grid; grid-template-columns: 1fr auto; gap: 10px;
-    padding: 12px; background: linear-gradient(180deg, #0e131a, #0c1118);
-  }
-  .input {
-    background: var(--surface); color: var(--ink);
-    border: 1px solid var(--ring);
-    border-radius: 12px;
-    padding: 14px 16px;
-    font: inherit; font-size: 14px;
-    box-shadow: var(--shadow);
-  }
-  .input::placeholder { color: var(--muted); }
-  .send {
-    background: linear-gradient(180deg, var(--accent), #4b86ff);
-    color: #0b1220;
-    border: none;
-    border-radius: 12px;
-    padding: 12px 18px;
-    font: inherit; font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 12px 30px rgba(106,166,255,.35);
-  }
-  .send:disabled { opacity: .6; cursor: default; }
+  .composer{border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118)}
+  .input{background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px; box-shadow:var(--shadow)}
+  .input::placeholder{color:var(--muted)}
+  .send{background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer; box-shadow:0 12px 30px rgba(106,166,255,.35)}
+  .send:disabled{opacity:.6; cursor:default}
+
+  /* Sentence-by-sentence fade-in */
+  .rich .sentence{display:block; opacity:0; transform:translateY(4px); animation:rise .25s ease forwards; margin:0 0 6px 0}
+  @keyframes rise{to{opacity:1; transform:translateY(0)}}
+
+  /* Basic markdown styling */
+  .rich h1,.rich h2,.rich h3{margin:8px 0 6px}
+  .rich h1{font-size:20px} .rich h2{font-size:18px} .rich h3{font-size:16px}
+  .rich code{background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.95em}
+  .rich pre{background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto}
+  .rich ul{padding-left:18px; margin:6px 0}
+  .rich li{margin:2px 0}
 
   .toast{
-    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
-    background: rgba(20,26,34,.9);
-    color: var(--ink);
-    border: 1px solid var(--ring);
-    padding: 8px 12px; border-radius: 10px;
-    font-size: 12px;
-    opacity: 0; transition: opacity .2s ease;
-    z-index: 9999;
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    background:rgba(20,26,34,.9); color:var(--ink); border:1px solid var(--ring);
+    padding:8px 12px; border-radius:10px; font-size:12px; opacity:0; transition:opacity .2s; z-index:9999
   }
-  .toast.show{ opacity: 1; }
+  .toast.show{opacity:1}
 
-  /* Mobile */
-  @media (max-width: 560px) {
-    .panel { margin: 0; border-radius: 0; }
-    .messages { padding-bottom: 8px; }
-  }
+  @media (max-width:560px){ .panel{margin:0; border-radius:0} .messages{padding-bottom:8px} }
 </style>
 </head>
 <body>
@@ -169,7 +116,6 @@
       <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
-
       <button id="refresh" class="refresh" title="New chat">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
@@ -188,7 +134,7 @@
   </main>
 
   <footer style="opacity:.55; font-size:12px; text-align:center; padding:10px;">
-    Built with Straico models. Keys stay server side.
+    Built by ServeSmartAI
   </footer>
 </div>
 
@@ -203,36 +149,93 @@
   const refreshBtn= document.getElementById('refresh');
   const toastEl   = document.getElementById('toast');
 
-  // No system prompt, raw access
-  const history = []; // [{role:'user'|'assistant', content:'...'}]
+  // No system prompt
+  const history = [];
 
-  // UI helpers
-  function addBubble(text, who) {
+  // Helpers
+  function addUserBubble(text){
     const b = document.createElement('div');
-    b.className = 'bubble ' + (who === 'user' ? 'user' : 'ai');
-    const copy = document.createElement('span');
-    copy.className = 'copy';
-    copy.textContent = 'Copy';
-    copy.onclick = () => navigator.clipboard.writeText(text);
+    b.className = 'bubble user';
     b.textContent = text;
-    if (who !== 'user') b.appendChild(copy);
     messagesEl.appendChild(b);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    history.push({ role:'user', content:text });
   }
 
-  function addTyping() {
+  function addTyping(){
     const b = document.createElement('div');
-    b.className = 'bubble ai';
-    b.textContent = '…';
+    b.className = 'bubble ai typing';
+    b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
     messagesEl.appendChild(b);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
 
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function mdToHtml(input){
+    let s = escapeHtml(input);
+    // code blocks
+    s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
+    // inline code
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // bold then italics
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+    // headings
+    s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
+    s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
+    // bullet lists
+    s = s.replace(/(^|\n)(?:[-*]\s.+)(?:\n[-*]\s.+)+/g, block => {
+      const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join('');
+      return `\n<ul>${items}</ul>`;
+    });
+    // paragraphs and line breaks
+    s = s.replace(/\n{2,}/g, '</p><p>');
+    s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
+    return s.replace(/<p><\/p>/g,'');
+  }
+
+  function splitSentences(text){
+    // split on end punctuation, keep punctuation with the sentence
+    return text.split(/(?<=[.!?…])\s+(?=[^\s])/g);
+  }
+
+  function showBotReply(reply, typingBubble){
+    // create final bubble
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div');
+    rich.className = 'rich';
+    b.appendChild(rich);
+
+    if (typingBubble) messagesEl.replaceChild(b, typingBubble);
+    else messagesEl.appendChild(b);
+
+    const parts = splitSentences(String(reply));
+    let i = 0;
+    function next(){
+      if (i >= parts.length) return;
+      const span = document.createElement('div');
+      span.className = 'sentence';
+      span.innerHTML = mdToHtml(parts[i]);
+      rich.appendChild(span);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      i += 1;
+      setTimeout(next, 140); // pace between sentences
+    }
+    next();
+
+    history.push({ role:'assistant', content: String(reply) });
+  }
+
   function toast(msg){
     toastEl.textContent = msg;
     toastEl.classList.add('show');
-    setTimeout(() => toastEl.classList.remove('show'), 1600);
+    setTimeout(()=>toastEl.classList.remove('show'), 1600);
   }
 
   function resetChat(){
@@ -241,9 +244,9 @@
     toast('New chat started');
   }
 
-  // Load models from your secure endpoint
-  async function loadModels() {
-    try {
+  // Load models
+  async function loadModels(){
+    try{
       const r = await fetch('/api/straico/models');
       const data = await r.json();
       const list = Array.isArray(data?.data) ? data.data : [];
@@ -251,8 +254,8 @@
       list.forEach(m => {
         if (!m?.model) return;
         const o = document.createElement('option');
-        o.value = m.model;                 // exact API id
-        o.textContent = m.name || m.model; // neat label
+        o.value = m.model;
+        o.textContent = m.name || m.model;
         modelSel.appendChild(o);
       });
       const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
@@ -265,34 +268,31 @@
   }
 
   // Send via proxy
-  async function send() {
+  async function send(){
     const text = promptEl.value.trim();
     if (!text || !modelSel.value || sendBtn.disabled) return;
 
     promptEl.value = '';
     sendBtn.disabled = true;
 
-    history.push({ role:'user', content:text });
-    addBubble(text, 'user');
+    addUserBubble(text);
     const thinking = addTyping();
 
-    try {
-      const model = modelSel.value; // read at click time
-      console.log('Sending with model:', model);
-
+    try{
+      const model = modelSel.value;
       const r = await fetch('/api/straico/chat', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ model, messages: history, stream: false })
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model, messages: history, stream:false })
       });
 
-      const payload = await r.text();
-      let data; try { data = JSON.parse(payload); } catch { data = { raw: payload }; }
+      const raw = await r.text();
+      let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
 
-      if (!r.ok) {
+      if (!r.ok){
         thinking.remove();
-        const err = data?.response?.error || data?.error || payload;
-        addBubble('Error ' + r.status + ': ' + err, 'ai');
+        const err = data?.response?.error || data?.error || raw;
+        showBotReply('Error ' + r.status + ': ' + err, null);
         return;
       }
 
@@ -301,13 +301,11 @@
         || data?.response?.completion?.choices?.[0]?.message?.content
         || data?.response?.text
         || 'No content returned.';
-      thinking.remove();
-      history.push({ role:'assistant', content: reply });
-      addBubble(reply, 'ai');
+      showBotReply(reply, thinking);
 
     } catch {
       thinking.remove();
-      addBubble('Network error. Please try again.', 'ai');
+      showBotReply('Network error. Please try again.', null);
     } finally {
       sendBtn.disabled = false;
       promptEl.focus();
@@ -316,10 +314,8 @@
 
   // Events
   sendBtn.addEventListener('click', send);
-  promptEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-  });
-  refreshBtn.addEventListener('click', () => resetChat());
+  promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
+  refreshBtn.addEventListener('click', resetChat);
   modelSel.addEventListener('change', () => {
     resetChat();
     const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
