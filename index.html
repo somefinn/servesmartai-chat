@@ -41,7 +41,9 @@
     appearance:none; background:var(--panel); color:var(--ink);
     border:1px solid var(--ring); border-radius:999px;
     padding:10px 40px 10px 14px; font:inherit; font-size:13px;
+    text-align-last:center; /* centre selected label */
   }
+  .select option{ text-align:center } /* centre menu items */
   .chev{pointer-events:none; margin-left:-34px; width:12px; opacity:.7}
   .refresh{
     background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px;
@@ -68,6 +70,7 @@
   .bubble{
     display:block; width:fit-content; max-width:min(76ch, calc(100% - 32px));
     border-radius:16px; padding:12px 14px; margin:10px 0; line-height:1.6;
+    transition:height .2s ease;
   }
   .user{ background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto }
   .ai{   background:var(--bubble-ai);   border:1px solid var(--ring); margin-right:auto; position:relative; padding-bottom:36px }
@@ -154,6 +157,28 @@
   // Full conversation context kept here
   const history = []; // [{role:'user'|'assistant'|'system', content:string}]
 
+  let autoScroll = true;
+  messagesEl.addEventListener('scroll', () => {
+    const atBottom = Math.abs(messagesEl.scrollHeight - messagesEl.clientHeight - messagesEl.scrollTop) < 6;
+    autoScroll = atBottom;
+  });
+
+  function easeToBottom(){
+    if (!autoScroll) return;
+    const start = messagesEl.scrollTop;
+    const end = messagesEl.scrollHeight - messagesEl.clientHeight;
+    const dist = end - start;
+    if (dist < 1) return;
+    const dur = 350; const t0 = performance.now();
+    function step(t){
+      const p = Math.min(1, (t - t0) / dur);
+      const ease = 1 - Math.pow(1 - p, 3); // cubic ease-out
+      messagesEl.scrollTop = start + dist * ease;
+      if (p < 1 && autoScroll) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
   // -------- little helpers --------
   function toast(msg){
     toastEl.textContent = msg;
@@ -165,7 +190,7 @@
     b.className = 'bubble user';
     b.textContent = text;
     messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    easeToBottom();
     history.push({ role:'user', content:text });
   }
   function addTyping(){
@@ -173,7 +198,7 @@
     b.className = 'bubble ai typing';
     b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
     messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    easeToBottom();
     return b;
   }
   function showBotReply(text, typingBubble, sourcePrompt){
@@ -193,12 +218,12 @@
     b.appendChild(actions);
 
     if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    easeToBottom();
     history.push({ role:'assistant', content:String(text) });
   }
 
   // minimal markdown
-  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m])); }
   function mdToHtml(input){
     let s = escapeHtml(input);
     s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
@@ -260,7 +285,102 @@
     }
   }
 
-  // -------- send + regenerate (non-stream: robust and keeps context) --------
+  // -------- streaming helpers --------
+  function extractDelta(obj){
+    if (!obj || typeof obj !== 'object') return '';
+    // Common streaming shapes
+    const d1 = obj?.choices?.[0]?.delta?.content;          // OpenAI delta
+    const d2 = obj?.delta?.content;                        // generic delta
+    const d3 = obj?.content;                               // bare content
+    const d4 = obj?.text;                                  // plain text field
+    const d5 = obj?.choices?.[0]?.message?.content;        // full message chunk
+    return d1 || d2 || d3 || d4 || d5 || '';
+  }
+
+  async function streamIntoBubble(response, typingBubble, sourcePrompt){
+    // Create final AI bubble now, then stream into it
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div'); rich.className = 'rich';
+    b.appendChild(rich);
+    messagesEl.replaceChild(b, typingBubble);
+
+    // Add actions at the end
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || rich.textContent || '');
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
+
+    let accumulated = '';
+    history.push({ role:'assistant', content:'' });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.body || (!contentType.includes('stream') && !contentType.includes('ndjson') && !contentType.includes('json') && !contentType.includes('text'))) {
+      const txt = await response.text();
+      try{
+        const data = JSON.parse(txt);
+        const finalText = data?.choices?.[0]?.message?.content || data?.text || '';
+        accumulated = String(finalText);
+      } catch{
+        accumulated = txt;
+      }
+      // Typewriter fallback for non-streaming responses
+      for (let i = 0; i < accumulated.length; i += Math.max(1, Math.floor(accumulated.length/400))) {
+        rich.innerHTML = mdToHtml(accumulated.slice(0, i+1));
+        history[history.length-1].content = accumulated.slice(0, i+1);
+        easeToBottom();
+        await new Promise(r => setTimeout(r, 8));
+      }
+      b.appendChild(actions);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Handle SSE style lines: "data: {...}\n\n" and NDJSON lines
+      const parts = buffer.split(/\r?\n/);
+      buffer = parts.pop(); // keep last partial
+      for (const line of parts) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith('data:')) {
+          const payload = trimmed.replace(/^data:\s*/, '');
+          if (payload === '[DONE]') continue;
+          try{
+            const obj = JSON.parse(payload);
+            const delta = extractDelta(obj);
+            if (delta) { accumulated += delta; rich.innerHTML = mdToHtml(accumulated); history[history.length-1].content = accumulated; easeToBottom(); }
+          }catch{/* ignore parse errors */}
+        } else {
+          // NDJSON plain line
+          try{
+            const obj = JSON.parse(trimmed);
+            const delta = extractDelta(obj);
+            if (delta) { accumulated += delta; rich.innerHTML = mdToHtml(accumulated); history[history.length-1].content = accumulated; easeToBottom(); }
+          }catch{
+            // Fallback: treat as plain text stream
+            accumulated += trimmed + '\n';
+            rich.innerHTML = mdToHtml(accumulated);
+            history[history.length-1].content = accumulated;
+            easeToBottom();
+          }
+        }
+      }
+    }
+
+    b.appendChild(actions);
+  }
+
+  // -------- send + regenerate (now with streaming) --------
   async function send(){
     const text = promptEl.value.trim();
     if (!text || !modelSel.value || sendBtn.disabled) return;
@@ -274,21 +394,17 @@
       const r = await fetch('/api/straico/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model, messages: history, stream:false })
+        body: JSON.stringify({ model, messages: history, stream:true })
       });
 
-      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
       if (!r.ok){
+        const errText = await r.text();
         typing.remove();
-        const err = data?.response?.error || data?.error || raw;
-        showBotReply('Error ' + r.status + ': ' + err, null, text);
+        showBotReply('Error ' + r.status + ': ' + errText, null, text);
         return;
       }
-      const reply =
-        data?.choices?.[0]?.message?.content
-        || data?.response?.completion?.choices?.[0]?.message?.content
-        || data?.response?.text || 'No content returned.';
-      showBotReply(reply, typing, text);
+
+      await streamIntoBubble(r, typing, text);
 
     } catch {
       typing.remove();
@@ -312,15 +428,10 @@
       const r = await fetch('/api/straico/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model, messages: history, stream:false })
+        body: JSON.stringify({ model, messages: history, stream:true })
       });
-      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-      if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
-      const reply =
-        data?.choices?.[0]?.message?.content
-        || data?.response?.completion?.choices?.[0]?.message?.content
-        || data?.response?.text || 'No content returned.';
-      showBotReply(reply, t, sourcePrompt);
+      if (!r.ok){ const err = await r.text(); t.remove(); showBotReply('Error ' + r.status + ': ' + err, null, sourcePrompt); return; }
+      await streamIntoBubble(r, t, sourcePrompt);
     } catch { t.remove(); showBotReply('Network error. Please try again.', null, sourcePrompt); }
   }
 
