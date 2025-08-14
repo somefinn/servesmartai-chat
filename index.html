@@ -6,7 +6,6 @@
 <title>ServeSmartAI</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-
 <style>
   :root{
     --bg:#0f1115; --bg-2:#0c0f14;
@@ -15,8 +14,8 @@
     --ring:#263447; --accent:#6aa6ff; --accent-2:#7b7bff;
     --bubble-user:#1f2735; --bubble-ai:#121923;
   }
-  *{ box-sizing:border-box }
-  html, body{ height:100%; overflow:hidden }
+  *{box-sizing:border-box}
+  html,body{height:100%; overflow:hidden}
   body{
     margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink);
     background:
@@ -25,12 +24,7 @@
       linear-gradient(180deg, var(--bg), var(--bg-2));
   }
 
-  /* App layout */
-  .wrap{
-    height:100dvh; min-height:100svh;
-    display:grid; grid-template-rows:auto 1fr auto;
-    row-gap:18px; padding-top:16px;
-  }
+  .wrap{height:100dvh; min-height:100svh; display:grid; grid-template-rows:auto 1fr auto; row-gap:18px; padding-top:16px}
   header{
     backdrop-filter:saturate(150%) blur(8px);
     background:linear-gradient(180deg, rgba(26,34,45,.65), rgba(20,26,34,.65));
@@ -38,107 +32,80 @@
     padding:14px clamp(14px,2.5vw,22px);
     display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center;
   }
-  .brand{ display:flex; align-items:center; gap:10px }
-  .logo{ width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent-2)) }
-  .title{ margin:0; font-weight:600; font-size:15px; letter-spacing:.2px; color:var(--ink); opacity:.95 }
+  .brand{display:flex; align-items:center; gap:10px}
+  .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+  .title{margin:0; font-weight:600; font-size:15px; letter-spacing:.2px}
 
-  .controls{ display:flex; align-items:center; gap:10px }
+  .controls{display:flex; align-items:center; gap:10px}
   .select{
     appearance:none; background:var(--panel); color:var(--ink);
     border:1px solid var(--ring); border-radius:999px;
     padding:10px 40px 10px 14px; font:inherit; font-size:13px;
   }
-  .chev{ pointer-events:none; margin-left:-34px; width:12px; opacity:.7 }
+  .chev{pointer-events:none; margin-left:-34px; width:12px; opacity:.7}
+  .refresh{
+    background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px;
+    width:36px; height:36px; display:grid; place-items:center; margin-left:6px; cursor:pointer;
+  }
 
   .panel{
-    max-width:900px; width:100%;
-    margin:0 auto;
-    height:100%; min-height:0;
+    max-width:900px; width:100%; margin:0 auto; height:100%; min-height:0;
     display:grid; grid-template-rows:1fr auto;
     border:1px solid var(--ring); background:linear-gradient(180deg,#0f141c,#0e131a);
-    border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,.45); overflow:hidden
+    border-radius:18px; overflow:hidden
   }
-
-  /* Messages area scrolls; page stays still */
   .messages{
-    position:relative;
-    padding:clamp(14px,2.5vw,20px);
-    /* room above the input so last bubble never kisses it */
-    padding-bottom:120px;
-    scroll-padding-bottom:120px;
+    position:relative; padding:clamp(14px,2.5vw,20px);
+    padding-bottom:110px; scroll-padding-bottom:110px;
     height:100%; min-height:0; overflow:auto;
   }
-
-  /* Dark scrollbar so it never flips to white */
-  .messages{
-    scrollbar-color:#2a3445 #0c1118; /* Firefox */
-  }
-  .messages::-webkit-scrollbar{ width:12px }
-  .messages::-webkit-scrollbar-track{ background:#0c1118; border-radius:10px }
-  .messages::-webkit-scrollbar-thumb{ background:#2a3445; border-radius:10px }
-  .messages::-webkit-scrollbar-thumb:hover{ background:#35435a }
-
-  /* top fade mask */
   .messages::before{
     content:""; position:sticky; top:0; left:0; right:0; height:64px;
     background:linear-gradient(180deg, var(--bg), rgba(15,17,21,0));
-    pointer-events:none; z-index:2;
+    pointer-events:none; z-index:1;
   }
 
-  /* Bubbles */
   .bubble{
-    display:block;
-    width:fit-content;
-    max-width:min(76ch, calc(100% - 32px));
+    display:block; width:fit-content; max-width:min(76ch, calc(100% - 32px));
     border-radius:16px; padding:12px 14px; margin:10px 0; line-height:1.6;
-    box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 10px 24px rgba(0,0,0,.25)
   }
   .user{ background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto }
-  .ai{   background:var(--bubble-ai);   border:1px solid var(--ring); margin-right:auto }
+  .ai{   background:var(--bubble-ai);   border:1px solid var(--ring); margin-right:auto; position:relative; padding-bottom:36px }
 
-  /* Thinking… bubble perfectly centered */
-  .bubble.ai.typing{
-    display:grid; place-items:center;
-    height:34px; min-height:34px; line-height:0;
-    padding:8px 12px;
-  }
+  /* centred thinking bubble */
+  .ai.typing{ display:grid; place-items:center; height:34px; min-height:34px; padding:8px 12px }
   .dots{ display:flex; align-items:center; justify-content:center; gap:6px }
   .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
   .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
   @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
 
-  /* Per-message actions */
-  .bubble.ai{ position:relative; padding-bottom:34px }
-  .actions{ position:absolute; left:12px; bottom:8px; display:flex; gap:6px; z-index:1 }
+  .actions{ position:absolute; left:12px; bottom:8px; display:flex; gap:6px }
   .btn-mini{
-    background:#0c1118; color:var(--ink);
-    border:1px solid var(--ring); border-radius:8px;
-    padding:4px 8px; font-size:11px; cursor:pointer; opacity:.9;
+    background:#0c1118; color:var(--ink); border:1px solid var(--ring); border-radius:8px;
+    padding:4px 8px; font-size:11px; cursor:pointer; opacity:.85;
   }
   .btn-mini:hover{ opacity:1 }
 
-  /* Gentle fade-in for each appended chunk (opacity only; no translate) */
-  .fade-in{ opacity:0; animation:appear .35s ease forwards }
-  @keyframes appear{ to{ opacity:1 } }
-
-  /* Markdown basics */
   .rich h1,.rich h2,.rich h3{ margin:8px 0 6px }
   .rich h1{ font-size:20px } .rich h2{ font-size:18px } .rich h3{ font-size:16px }
-  .rich code{ background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.95em }
+  .rich code{ background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.95em }
   .rich pre{ background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto }
   .rich ul{ padding-left:18px; margin:6px 0 } .rich li{ margin:2px 0 }
 
-  /* Composer */
-  .composer{
-    border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px;
-    background:linear-gradient(180deg,#0e131a,#0c1118)
-  }
+  .composer{ border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118) }
   .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px }
-  .input::placeholder{ color:var(--muted) }
   .send{ background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer }
   .send:disabled{ opacity:.6; cursor:default }
 
+  .toast{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    background:rgba(20,26,34,.9); color:var(--ink); border:1px solid var(--ring);
+    padding:8px 12px; border-radius:10px; font-size:12px; opacity:0; transition:opacity .2s; z-index:9999
+  }
+  .toast.show{ opacity:1 }
+
   footer{ opacity:.55; font-size:12px; text-align:center; padding:18px 10px 28px }
+  @media (max-width:560px){ .panel{ border-radius:0 } }
 </style>
 </head>
 <body>
@@ -148,12 +115,17 @@
       <div class="logo" aria-hidden="true"></div>
       <h1 class="title">ServeSmartAI</h1>
     </div>
-
     <div class="controls" title="Choose a model">
       <select id="model" class="select"></select>
       <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
+      <button id="refresh" class="refresh" title="New chat">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <path d="M3.5 9A9 9 0 0 1 18.3 5.6L23 10M1 14l4.7 4.4A9 9 0 0 0 20.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -168,45 +140,67 @@
   <footer>Built by ServeSmartAI</footer>
 </div>
 
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
 <script>
   // Elements
-  const modelSel   = document.getElementById('model');
-  const messagesEl = document.getElementById('messages');
-  const promptEl   = document.getElementById('prompt');
-  const sendBtn    = document.getElementById('send');
+  const modelSel  = document.getElementById('model');
+  const messagesEl= document.getElementById('messages');
+  const promptEl  = document.getElementById('prompt');
+  const sendBtn   = document.getElementById('send');
+  const refreshBtn= document.getElementById('refresh');
+  const toastEl   = document.getElementById('toast');
 
-  // Full conversation context (sent every turn)
-  const history = [];
+  // Full conversation context kept here
+  const history = []; // [{role:'user'|'assistant'|'system', content:string}]
 
-  // ---------- UI helpers ----------
-  const isNearBottom = (px = 140) =>
-    (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
-
-  function smoothPinToBottom(){
-    if (isNearBottom()) messagesEl.scrollTop = messagesEl.scrollHeight;
+  // -------- little helpers --------
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=>toastEl.classList.remove('show'), 1400);
   }
-
   function addUserBubble(text){
     const b = document.createElement('div');
     b.className = 'bubble user';
     b.textContent = text;
     messagesEl.appendChild(b);
-    smoothPinToBottom();
+    messagesEl.scrollTop = messagesEl.scrollHeight;
     history.push({ role:'user', content:text });
   }
-
   function addTyping(){
     const b = document.createElement('div');
     b.className = 'bubble ai typing';
     b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
     messagesEl.appendChild(b);
-    smoothPinToBottom();
+    messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
+  function showBotReply(text, typingBubble, sourcePrompt){
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div'); rich.className = 'rich';
+    rich.innerHTML = mdToHtml(String(text));
+    b.appendChild(rich);
 
+    // actions
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
+    b.appendChild(actions);
+
+    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    history.push({ role:'assistant', content:String(text) });
+  }
+
+  // minimal markdown
   function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function mdToHtml(input){
-    let s = escapeHtml(String(input));
+    let s = escapeHtml(input);
     s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -218,164 +212,18 @@
       const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join('');
       return `\n<ul>${items}</ul>`;
     });
-    s = s.replace(/\n{2,}/g, '</p><p>');
-    s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
+    s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
     return s.replace(/<p><\/p>/g,'');
   }
 
-  function makeActions(host, plainGetter, onRegenerate){
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    const copyBtn = document.createElement('button'); copyBtn.className='btn-mini'; copyBtn.textContent='Copy';
-    const regenBtn= document.createElement('button'); regenBtn.className='btn-mini'; regenBtn.textContent='Regenerate';
-    copyBtn.onclick = () => navigator.clipboard.writeText(plainGetter());
-    regenBtn.onclick = onRegenerate;
-    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-    host.appendChild(actions);
-  }
-
-  function splitAtSentenceEnds(text){
-    return String(text).split(/(?<=[.!?…])\s+(?=[^\s])/g);
-  }
-
-  function showBotReplyFinal(reply, replaceEl, sourcePrompt){
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble ai fade-in';
-    const rich = document.createElement('div');
-    rich.className = 'rich';
-    rich.innerHTML = mdToHtml(reply);
-    bubble.appendChild(rich);
-    makeActions(bubble, () => rich.innerText || String(reply), () => regenerate(sourcePrompt, bubble));
-    if (replaceEl) messagesEl.replaceChild(bubble, replaceEl); else messagesEl.appendChild(bubble);
-    smoothPinToBottom();
-    history.push({ role:'assistant', content:String(reply) });
-  }
-
-  // Try progressive “sentence fade” if the server streams; otherwise fall back to final message
-  function extractEventContent(line){
-    try{
-      const j = JSON.parse(line);
-      return (
-        j?.choices?.[0]?.delta?.content ??
-        j?.choices?.[0]?.message?.content ??
-        j?.delta?.content ?? j?.content ?? j?.text ?? j?.completion ?? ''
-      );
-    }catch{ return ''; }
-  }
-
-  async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
-    const res = await fetch('/api/straico/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, messages: historySoFar, stream:true })
-    });
-    if (!res.ok || !res.body) return null;
-
-    const bubble = document.createElement('div'); bubble.className = 'bubble ai';
-    const rich   = document.createElement('div'); rich.className  = 'rich';
-    bubble.appendChild(rich);
-    makeActions(bubble, () => rich.innerText || fullText, () => regenerate(sourcePrompt, bubble));
-    messagesEl.replaceChild(bubble, typingBubble);
-
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '', working = '', fullText = '';
-
-    // active “live” line
-    let live = document.createElement('div'); live.className = 'fade-in';
-    rich.appendChild(live);
-
-    const flush = () => {
-      const lastStop = Math.max(
-        working.lastIndexOf('.'), working.lastIndexOf('!'),
-        working.lastIndexOf('?'), working.lastIndexOf('…')
-      );
-      if (lastStop === -1){
-        live.innerHTML = mdToHtml(working);
-        smoothPinToBottom(); return;
-      }
-      const done = working.slice(0, lastStop + 1);
-      const rest = working.slice(lastStop + 1);
-
-      // replace live with a fixed faded paragraph
-      live.remove();
-      const fixed = document.createElement('div'); fixed.className = 'fade-in';
-      fixed.innerHTML = mdToHtml(done);
-      rich.appendChild(fixed);
-
-      // new live
-      live = document.createElement('div'); live.className = 'fade-in';
-      live.innerHTML = mdToHtml(rest);
-      rich.appendChild(live);
-
-      working = rest; fullText += done;
-      smoothPinToBottom();
-    };
-
-    while(true){
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream:true });
-      const parts = buffer.split(/\n\n/); buffer = parts.pop() || '';
-      for (const block of parts){
-        const line = block.replace(/^data:\s?/, '').trim();
-        if (!line || line === '[DONE]') continue;
-        const piece = extractEventContent(line);
-        if (piece){ working += piece; flush(); }
-      }
-    }
-
-    // flush remainder
-    if (working.trim()){
-      live.remove();
-      const last = document.createElement('div'); last.className = 'fade-in';
-      last.innerHTML = mdToHtml(working);
-      rich.appendChild(last);
-      fullText += working;
-      smoothPinToBottom();
-    } else if (live && live.parentNode){ live.parentNode.removeChild(live); }
-
-    if (!fullText.trim()) return null;
-    history.push({ role:'assistant', content: fullText });
-    return fullText;
-  }
-
-  async function regenerate(promptText, oldBubble){
-    if (!promptText || !oldBubble) return;
-    // remove the last assistant message from history
-    for (let i = history.length - 1; i >= 0; i--){
-      if (history[i].role === 'assistant'){ history.splice(i,1); break; }
-    }
-    const t = addTyping();
-    messagesEl.insertBefore(t, oldBubble);
-    oldBubble.remove();
-
-    const model = modelSel.value;
-    let got = null;
-    try { got = await streamReply(model, history, t, promptText); } catch {}
-    if (got !== null) return;
-
-    // fallback
-    const r = await fetch('/api/straico/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, messages: history, stream:false })
-    });
-    const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-    if (!r.ok){ t.remove(); showBotReplyFinal('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw)); return; }
-    const reply =
-      data?.choices?.[0]?.message?.content
-      || data?.response?.completion?.choices?.[0]?.message?.content
-      || data?.response?.text || 'No content returned.';
-    showBotReplyFinal(reply, t, promptText);
-  }
-
-  // ---------- Models (from your secure endpoint) ----------
+  // -------- model list (grouped) --------
   async function loadModels(){
     try{
       const r = await fetch('/api/straico/models');
       const data = await r.json();
       const list = Array.isArray(data?.data) ? data.data : [];
 
-      // group by provider
+      // group by provider (text before slash)
       const groups = {};
       for (const m of list){
         if (!m?.model) continue;
@@ -412,52 +260,81 @@
     }
   }
 
-  // ---------- Send ----------
+  // -------- send + regenerate (non-stream: robust and keeps context) --------
   async function send(){
     const text = promptEl.value.trim();
     if (!text || !modelSel.value || sendBtn.disabled) return;
 
-    promptEl.value = '';
-    sendBtn.disabled = true;
-
+    promptEl.value = ''; sendBtn.disabled = true;
     addUserBubble(text);
-    const thinking = addTyping();
+    const typing = addTyping();
 
     try{
       const model = modelSel.value;
-
-      // 1) try streaming first
-      let got = null;
-      try { got = await streamReply(model, history, thinking, text); } catch {}
-      if (got !== null){ sendBtn.disabled = false; promptEl.focus(); return; }
-
-      // 2) non-stream fallback
       const r = await fetch('/api/straico/chat', {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ model, messages: history, stream:false })
       });
+
       const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-      if (!r.ok){ thinking.remove(); showBotReplyFinal('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw)); return; }
+      if (!r.ok){
+        typing.remove();
+        const err = data?.response?.error || data?.error || raw;
+        showBotReply('Error ' + r.status + ': ' + err, null, text);
+        return;
+      }
       const reply =
         data?.choices?.[0]?.message?.content
         || data?.response?.completion?.choices?.[0]?.message?.content
         || data?.response?.text || 'No content returned.';
-      showBotReplyFinal(reply, thinking, text);
+      showBotReply(reply, typing, text);
 
     } catch {
-      thinking.remove();
-      showBotReplyFinal('Network error. Please try again.');
+      typing.remove();
+      showBotReply('Network error. Please try again.', null, text);
     } finally {
       sendBtn.disabled = false;
       promptEl.focus();
     }
   }
 
-  // Events
+  async function regenerate(sourcePrompt, oldBubble){
+    if (!sourcePrompt || !oldBubble) return;
+    // remove last assistant from history
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === 'assistant') { history.splice(i, 1); break; }
+    }
+    const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
+
+    try{
+      const model = modelSel.value;
+      const r = await fetch('/api/straico/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model, messages: history, stream:false })
+      });
+      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+      if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
+      const reply =
+        data?.choices?.[0]?.message?.content
+        || data?.response?.completion?.choices?.[0]?.message?.content
+        || data?.response?.text || 'No content returned.';
+      showBotReply(reply, t, sourcePrompt);
+    } catch { t.remove(); showBotReply('Network error. Please try again.', null, sourcePrompt); }
+  }
+
+  // -------- events --------
   sendBtn.addEventListener('click', send);
   promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
+  refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
+  modelSel.addEventListener('change', () => {
+    const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
+    toast('Model selected: ' + label);        // context is preserved
+    promptEl.focus();
+  });
 
-  // Boot
+  // -------- boot --------
   loadModels();
   promptEl.focus();
 </script>
