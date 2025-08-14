@@ -56,9 +56,16 @@
   }
   .messages{
     position:relative; padding:clamp(14px,2.5vw,20px);
-    padding-bottom:110px; scroll-padding-bottom:110px;
+    padding-bottom:120px; scroll-padding-bottom:120px;   /* a touch more space above input */
     height:100%; min-height:0; overflow:auto;
+    /* dark scrollbar so it never flips white */
+    scrollbar-color:#2a3445 #0c1118;           /* Firefox */
   }
+  .messages::-webkit-scrollbar{ width:12px }   /* WebKit */
+  .messages::-webkit-scrollbar-track{ background:#0c1118; border-radius:10px }
+  .messages::-webkit-scrollbar-thumb{ background:#2a3445; border-radius:10px }
+  .messages::-webkit-scrollbar-thumb:hover{ background:#35435a }
+
   .messages::before{
     content:""; position:sticky; top:0; left:0; right:0; height:64px;
     background:linear-gradient(180deg, var(--bg), rgba(15,17,21,0));
@@ -73,7 +80,7 @@
   .ai{   background:var(--bubble-ai);   border:1px solid var(--ring); margin-right:auto; position:relative; padding-bottom:36px }
 
   /* centred thinking bubble */
-  .ai.typing{ display:grid; place-items:center; height:34px; min-height:34px; padding:8px 12px }
+  .ai.typing{ display:grid; place-items:center; height:34px; min-height:34px; padding:8px 12px; line-height:0 }
   .dots{ display:flex; align-items:center; justify-content:center; gap:6px }
   .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
   .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
@@ -85,6 +92,10 @@
     padding:4px 8px; font-size:11px; cursor:pointer; opacity:.85;
   }
   .btn-mini:hover{ opacity:1 }
+
+  /* tiny, elegant reveal (opacity only) */
+  .reveal{ opacity:0; animation:fadeIn .35s ease forwards }
+  @keyframes fadeIn{ to{ opacity:1 } }
 
   .rich h1,.rich h2,.rich h3{ margin:8px 0 6px }
   .rich h1{ font-size:20px } .rich h2{ font-size:18px } .rich h3{ font-size:16px }
@@ -176,11 +187,33 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
+
+  // elegant fade reveal (sentence-by-sentence)
+  function splitSentences(t){ return String(t).split(/(?<=[.!?…])\s+(?=[^\s])/g); }
+  function animatedReveal(text, container){
+    const parts = splitSentences(text);
+    if (parts.length <= 1){         // fallback
+      container.innerHTML = mdToHtml(String(text));
+      return;
+    }
+    container.innerHTML = '';
+    let delay = 0;
+    for (const p of parts){
+      const div = document.createElement('div');
+      div.className = 'reveal';
+      div.style.animationDelay = `${delay}ms`;
+      div.innerHTML = mdToHtml(p);
+      container.appendChild(div);
+      delay += 120;                 // gentle stagger
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  }
+
   function showBotReply(text, typingBubble, sourcePrompt){
     const b = document.createElement('div');
     b.className = 'bubble ai';
     const rich = document.createElement('div'); rich.className = 'rich';
-    rich.innerHTML = mdToHtml(String(text));
+    animatedReveal(String(text), rich);          // << fade reveal here
     b.appendChild(rich);
 
     // actions
