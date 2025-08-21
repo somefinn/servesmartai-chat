@@ -238,6 +238,27 @@ scrollAnimId = requestAnimationFrame(frame);
     s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
     return s.replace(/<p><\/p>/g,'');
   }
+// ---- Step 2: SSE JSON line -> text extractor (no behavior change yet) ----
+function extractEventContent(line) {
+  // `line` should be the JSON part from an SSE "data: { ... }" message
+  try {
+    const j = JSON.parse(line);
+
+    // Try common shapes first (OpenAI-like), then Straico-wrapped variants.
+    return (
+      j?.choices?.[0]?.delta?.content ??                 // streaming delta
+      j?.choices?.[0]?.message?.content ??               // message content
+      j?.delta?.content ??                               // some providers
+      j?.content ?? j?.text ?? j?.completion ??          // simpler shapes
+      j?.response?.text ??                               // Straico plain text
+      j?.response?.completion?.choices?.[0]?.delta?.content ??
+      j?.response?.completion?.choices?.[0]?.message?.content ??
+      ''
+    );
+  } catch {
+    return '';
+  }
+}
 
   // -------- model list (grouped) --------
   async function loadModels(){
