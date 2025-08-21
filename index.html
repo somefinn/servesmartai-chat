@@ -176,26 +176,81 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
-  function showBotReply(text, typingBubble, sourcePrompt){
-    const b = document.createElement('div');
-    b.className = 'bubble ai';
-    const rich = document.createElement('div'); rich.className = 'rich';
+  function showBotReply(text, typingBubble, sourcePrompt, isStreaming = false){
+  const b = document.createElement('div');
+  b.className = 'bubble ai';
+  const rich = document.createElement('div'); 
+  rich.className = 'rich';
+  
+  if (isStreaming) {
+    // Start with empty content for streaming
+    rich.innerHTML = '';
+    rich.style.opacity = '0';
+  } else {
+    // Non-streaming (fallback)
     rich.innerHTML = mdToHtml(String(text));
-    b.appendChild(rich);
+  }
+  
+  b.appendChild(rich);
 
-    // actions
-    const actions = document.createElement('div'); actions.className = 'actions';
-    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
-    regenBtn.onclick = () => regenerate(sourcePrompt, b);
-    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-    b.appendChild(actions);
+  // actions
+  const actions = document.createElement('div'); actions.className = 'actions';
+  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+  const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+  copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
+  regenBtn.onclick = () => regenerate(sourcePrompt, b);
+  actions.appendChild(copyBtn); actions.appendChild(regenBtn);
+  b.appendChild(actions);
 
-    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+  
+  if (!isStreaming) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
     history.push({ role:'assistant', content:String(text) });
   }
+  
+  return { bubble: b, richElement: rich };
+}
+
+// Streaming typewriter effect
+function streamText(richElement, text, onComplete) {
+  let currentText = '';
+  let index = 0;
+  const speed = 15; // milliseconds between characters
+  
+  // Fade in the element
+  richElement.style.opacity = '1';
+  richElement.style.transition = 'opacity 0.3s ease-in';
+  
+  function typeNextChar() {
+    if (index < text.length) {
+      currentText += text[index];
+      richElement.innerHTML = mdToHtml(currentText);
+      index++;
+      
+      // Smooth scroll to bottom
+      messagesEl.scrollTo({
+        top: messagesEl.scrollHeight,
+        behavior: 'smooth'
+      });
+      
+      setTimeout(typeNextChar, speed);
+    } else {
+      // Finished typing
+      if (onComplete) onComplete();
+    }
+  }
+  
+  typeNextChar();
+}
+
+// Enhanced smooth scrolling function
+function smoothScrollToBottom() {
+  messagesEl.scrollTo({
+    top: messagesEl.scrollHeight,
+    behavior: 'smooth'
+  });
+}
 
   // minimal markdown
   function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -262,67 +317,76 @@
 
   // -------- send + regenerate (non-stream: robust and keeps context) --------
   async function send(){
-    const text = promptEl.value.trim();
-    if (!text || !modelSel.value || sendBtn.disabled) return;
+  const text = promptEl.value.trim();
+  if (!text || !modelSel.value || sendBtn.disabled) return;
 
-    promptEl.value = ''; sendBtn.disabled = true;
-    addUserBubble(text);
-    const typing = addTyping();
+  promptEl.value = ''; sendBtn.disabled = true;
+  addUserBubble(text);
+  const typing = addTyping();
 
-    try{
-      const model = modelSel.value;
-      const r = await fetch('/api/straico/chat', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model, messages: history, stream:false })
-      });
+  try{
+    const model = modelSel.value;
+    const r = await fetch('/api/straico/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, messages: history, stream:false })
+    });
 
-      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-      if (!r.ok){
-        typing.remove();
-        const err = data?.response?.error || data?.error || raw;
-        showBotReply('Error ' + r.status + ': ' + err, null, text);
-        return;
-      }
-      const reply =
-        data?.choices?.[0]?.message?.content
-        || data?.response?.completion?.choices?.[0]?.message?.content
-        || data?.response?.text || 'No content returned.';
-      showBotReply(reply, typing, text);
-
-    } catch {
+    const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+    if (!r.ok){
       typing.remove();
-      showBotReply('Network error. Please try again.', null, text);
-    } finally {
-      sendBtn.disabled = false;
-      promptEl.focus();
+      const err = data?.response?.error || data?.error || raw;
+      showBotReply('Error ' + r.status + ': ' + err, null, text);
+      return;
     }
+    const reply =
+      data?.choices?.[0]?.message?.content
+      || data?.response?.completion?.choices?.[0]?.message?.content
+      || data?.response?.text || 'No content returned.';
+    showBotReply(reply, typing, text);
+
+  } catch {
+    typing.remove();
+    showBotReply('Network error. Please try again.', null, text);
+  } finally {
+    sendBtn.disabled = false;
+    promptEl.focus();
   }
+}
 
   async function regenerate(sourcePrompt, oldBubble){
-    if (!sourcePrompt || !oldBubble) return;
-    // remove last assistant from history
-    for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].role === 'assistant') { history.splice(i, 1); break; }
-    }
-    const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
-
-    try{
-      const model = modelSel.value;
-      const r = await fetch('/api/straico/chat', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model, messages: history, stream:false })
-      });
-      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-      if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
-      const reply =
-        data?.choices?.[0]?.message?.content
-        || data?.response?.completion?.choices?.[0]?.message?.content
-        || data?.response?.text || 'No content returned.';
-      showBotReply(reply, t, sourcePrompt);
-    } catch { t.remove(); showBotReply('Network error. Please try again.', null, sourcePrompt); }
+  async function regenerate(sourcePrompt, oldBubble){
+  if (!sourcePrompt || !oldBubble) return;
+  // remove last assistant from history
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'assistant') { history.splice(i, 1); break; }
   }
+  const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
+
+  try{
+    const model = modelSel.value;
+    const r = await fetch('/api/straico/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, messages: history, stream:false })
+    });
+    const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+    if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
+    const reply =
+      data?.choices?.[0]?.message?.content
+      || data?.response?.completion?.choices?.[0]?.message?.content
+      || data?.response?.text || 'No content returned.';
+    
+    // Create bubble for streaming
+    const { bubble, richElement } = showBotReply(reply, t, sourcePrompt, true);
+    
+    // Start streaming effect
+    streamText(richElement, reply, () => {
+      // When streaming is complete, add to history
+      history.push({ role:'assistant', content:String(reply) });
+    });
+  } catch { t.remove(); showBotReply('Network error. Please try again.', null, sourcePrompt); }
+}
 
   // -------- events --------
   sendBtn.addEventListener('click', send);
