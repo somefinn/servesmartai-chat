@@ -394,6 +394,154 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
   history.push({ role:'assistant', content: full });
   return full;
 }
+// ===== STREAMING HELPERS (add once) =====
+function isNearBottom(px = 120){
+  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+}
+
+let __scrollAnimId = 0;
+function smoothScrollToBottom(duration = 280){
+  cancelAnimationFrame(__scrollAnimId);
+  const start = messagesEl.scrollTop;
+  const end   = messagesEl.scrollHeight - messagesEl.clientHeight;
+  const t0    = performance.now();
+  const ease  = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+  function frame(now){
+    const p = Math.min(1, (now - t0) / duration);
+    messagesEl.scrollTop = start + (end - start) * ease(p);
+    if (p < 1) __scrollAnimId = requestAnimationFrame(frame);
+  }
+  __scrollAnimId = requestAnimationFrame(frame);
+}
+
+function extractEventContent(line){
+  // Pull content from SSE data payloads (supports many shapes)
+  try{
+    const j = JSON.parse(line);
+    return (
+      j?.choices?.[0]?.delta?.content ??
+      j?.choices?.[0]?.message?.content ??
+      j?.delta?.content ??
+      j?.content ??
+      j?.text ??
+      j?.completion ??
+      ''
+    );
+  }catch{ return ''; }
+}
+
+function appendSentence(rich, html){
+  // Elegant fade-in of each complete sentence
+  const span = document.createElement('div');
+  span.className = 'sentence';
+  span.style.opacity = '0';
+  span.style.transition = 'opacity .25s ease';
+  span.innerHTML = html;
+  rich.appendChild(span);
+  requestAnimationFrame(()=>{ span.style.opacity = '1'; });
+}
+
+async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
+  // Ask server to stream (SSE). If server doesn’t stream, we’ll return null to trigger fallback.
+  const res = await fetch('/api/straico/chat', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ model, messages: historySoFar, stream:true })
+  });
+  if (!res.ok || !res.body) return null;
+
+  // Swap typing bubble for a real AI bubble
+  const b = document.createElement('div'); b.className = 'bubble ai';
+  const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
+  const actions = document.createElement('div'); actions.className = 'actions';
+  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+  const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+  actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions);
+  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+
+  let buffer   = '';
+  let working  = '';  // growing, not-yet-final sentence
+  let complete = '';  // finalised text (sentences flushed)
+
+  // Live line that grows as chunks arrive
+  let live = document.createElement('div');
+  live.className = 'sentence';
+  rich.appendChild(live);
+
+  function flushIfSentenceEnded(){
+    // Find the last sentence terminator
+    const last = Math.max(
+      working.lastIndexOf('.'),
+      working.lastIndexOf('!'),
+      working.lastIndexOf('?'),
+      working.lastIndexOf('…')
+    );
+    if (last === -1){
+      // Update the live line only (no fade)
+      live.innerHTML = mdToHtml(working);
+      if (isNearBottom()) messagesEl.scrollTop = messagesEl.scrollHeight;
+      return;
+    }
+    // Split into complete (fade-in) + remainder (stay live)
+    const donePart = working.slice(0, last + 1);
+    const tail     = working.slice(last + 1);
+
+    rich.removeChild(live);
+    appendSentence(rich, mdToHtml(donePart));  // fade this in nicely
+    complete += donePart;
+
+    live = document.createElement('div');
+    live.className = 'sentence';
+    live.innerHTML = mdToHtml(tail);
+    rich.appendChild(live);
+
+    if (isNearBottom()) smoothScrollToBottom(240);
+    working = tail;
+  }
+
+  while(true){
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream:true });
+    const parts = buffer.split(/\n\n/);   // SSE events are separated by blank line
+    buffer = parts.pop() || '';           // keep the incomplete tail
+
+    for (const evt of parts){
+      const line = evt.replace(/^data:\s?/, '').trim();
+      if (!line || line === '[DONE]') continue;
+      const piece = extractEventContent(line);
+      if (piece){
+        working += piece;
+        flushIfSentenceEnded();
+      }
+    }
+  }
+
+  // Flush any remainder
+  if (working.trim()){
+    rich.removeChild(live);
+    appendSentence(rich, mdToHtml(working));
+    complete += working;
+    if (isNearBottom()) smoothScrollToBottom(240);
+  } else if (live && live.parentNode){
+    live.parentNode.removeChild(live);
+  }
+
+  // If we still have nothing, upstream probably didn’t stream -> tell caller to fallback
+  if (!complete.trim()) return null;
+
+  // Store in history and wire actions
+  history.push({ role:'assistant', content: complete });
+  copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || complete); };
+  regenBtn.onclick = () => regenerate(sourcePrompt, b);
+
+  return complete;
+}
+// ===== END STREAMING HELPERS =====
 
   // -------- model list (grouped) --------
   async function loadModels(){
