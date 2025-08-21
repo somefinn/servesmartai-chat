@@ -92,6 +92,10 @@
   .rich pre{ background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto }
   .rich ul{ padding-left:18px; margin:6px 0 } .rich li{ margin:2px 0 }
 
+  /* Step 3: sentence fade-in */
+.rich .sentence { opacity: 0; animation: fadeIn .25s ease forwards; }
+@keyframes fadeIn { to { opacity: 1; } }
+
   .composer{ border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118) }
   .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px }
   .send{ background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer }
@@ -258,6 +262,137 @@ function extractEventContent(line) {
   } catch {
     return '';
   }
+}
+// ---- Step 3a: buttery scroll helpers ----
+function isNearBottom(px = 120){
+  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+}
+let followId = 0;
+function startSmoothFollow(){
+  cancelAnimationFrame(followId);
+  function loop(){
+    if (isNearBottom()) {
+      const target = messagesEl.scrollHeight - messagesEl.clientHeight;
+      const dy = target - messagesEl.scrollTop;
+      messagesEl.scrollTop += dy * 0.18;  // gentle easing toward bottom
+    }
+    followId = requestAnimationFrame(loop);
+  }
+  followId = requestAnimationFrame(loop);
+}
+function stopSmoothFollow(){ cancelAnimationFrame(followId); }
+
+// ---- Step 3b: streaming reader (not wired yet) ----
+async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
+  const res = await fetch('/api/straico/chat', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ model, messages: historySoFar, stream:true })
+  });
+  if (!res.ok || !res.body) return null;
+
+  // swap typing -> real bubble
+  const bubble = document.createElement('div'); bubble.className = 'bubble ai';
+  const rich   = document.createElement('div'); rich.className = 'rich';
+  bubble.appendChild(rich);
+
+  // actions (wired after completion)
+  const actions = document.createElement('div'); actions.className = 'actions';
+  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+  const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+  actions.appendChild(copyBtn); actions.appendChild(regenBtn);
+  bubble.appendChild(actions);
+
+  if (typingBubble) messagesEl.replaceChild(bubble, typingBubble); else messagesEl.appendChild(bubble);
+
+  // live tail span
+  let live = document.createElement('div'); live.className = 'sentence';
+  rich.appendChild(live);
+
+  startSmoothFollow();
+
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buf = '';
+  let working = '';
+  let full = '';
+
+  function flushComplete(){
+    const lastDot = working.lastIndexOf('.');
+    const lastExc = working.lastIndexOf('!');
+    const lastQue = working.lastIndexOf('?');
+    const lastEll = working.lastIndexOf('…');
+    const i = Math.max(lastDot, lastExc, lastQue, lastEll);
+    if (i === -1){
+      // no full sentence yet; just update live span (no fade)
+      live.innerHTML = mdToHtml(working);
+      return;
+    }
+    // split off the complete part
+    const complete = working.slice(0, i + 1);
+    const rest     = working.slice(i + 1);
+
+    // commit the complete part with fade
+    rich.removeChild(live);
+    const s = document.createElement('div');
+    s.className = 'sentence';
+    s.innerHTML = mdToHtml(complete);
+    rich.appendChild(s);
+
+    // create fresh live span for remainder
+    live = document.createElement('div'); live.className = 'sentence';
+    live.innerHTML = mdToHtml(rest);
+    rich.appendChild(live);
+
+    full += complete;
+    working = rest;
+  }
+
+  try{
+    while(true){
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buf += decoder.decode(value, { stream:true });
+      // split SSE frames on blank line; keep tail in buf
+      const frames = buf.split(/\n\n/);
+      buf = frames.pop() || '';
+
+      for (const frame of frames){
+        const line = frame.replace(/^data:\s?/, '').trim();
+        if (!line || line === '[DONE]') continue;
+        const piece = extractEventContent(line);
+        if (!piece) continue;
+
+        working += piece;
+        flushComplete();
+        // buttery follow loop already keeps us pinned
+      }
+    }
+  } finally {
+    stopSmoothFollow();
+  }
+
+  // flush any leftover tail
+  if (working){
+    rich.removeChild(live);
+    const s = document.createElement('div');
+    s.className = 'sentence';
+    s.innerHTML = mdToHtml(working);
+    rich.appendChild(s);
+    full += working;
+  } else if (live && live.parentNode){
+    live.parentNode.removeChild(live);
+  }
+
+  if (!full.trim()) return null;
+
+  // wire actions
+  copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || full);
+  regenBtn.onclick = () => regenerate(sourcePrompt, bubble);
+
+  history.push({ role:'assistant', content: full });
+  return full;
 }
 
   // -------- model list (grouped) --------
