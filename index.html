@@ -7,498 +7,451 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#0f1115; --bg-2:#0c0f14;
-    --panel:#141a22; --surface:#161d27;
-    --ink:#e9edf3; --muted:#9aa6b2;
-    --ring:#263447; --accent:#6aa6ff; --accent-2:#7b7bff;
-    --bubble-user:#1f2735; --bubble-ai:#121923;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%; overflow:hidden}
-  body{
-    margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink);
-    background:
-      radial-gradient(1400px 900px at 10% -10%, #25324a 0%, transparent 60%),
-      radial-gradient(1000px 800px at 110% -10%, #1d2b45 0%, transparent 55%),
-      linear-gradient(180deg, var(--bg), var(--bg-2));
-  }
+  :root{
+    --bg:#0f1115; --bg-2:#0c0f14;
+    --panel:#141a22; --surface:#161d27;
+    --ink:#e9edf3; --muted:#9aa6b2;
+    --ring:#263447; --accent:#6aa6ff; --accent-2:#7b7bff;
+    --bubble-user:#1f2735; --bubble-ai:#121923;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; overflow:hidden}
+  body{
+    margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink);
+    background:
+      radial-gradient(1400px 900px at 10% -10%, #25324a 0%, transparent 60%),
+      radial-gradient(1000px 800px at 110% -10%, #1d2b45 0%, transparent 55%),
+      linear-gradient(180deg, var(--bg), var(--bg-2));
+  }
 
-  .wrap{height:100dvh; min-height:100svh; display:grid; grid-template-rows:auto 1fr auto; row-gap:18px; padding-top:16px}
-  header{
-    backdrop-filter:saturate(150%) blur(8px);
-    background:linear-gradient(180deg, rgba(26,34,45,.65), rgba(20,26,34,.65));
-    border-bottom:1px solid var(--ring);
-    padding:14px clamp(14px,2.5vw,22px);
-    display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center;
-  }
-  .brand{display:flex; align-items:center; gap:10px}
-  .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent-2))}
-  .title{margin:0; font-weight:600; font-size:15px; letter-spacing:.2px}
+  .wrap{height:100dvh; min-height:100svh; display:grid; grid-template-rows:auto 1fr auto; row-gap:18px; padding-top:16px}
+  header{
+    backdrop-filter:saturate(150%) blur(8px);
+    background:linear-gradient(180deg, rgba(26,34,45,.65), rgba(20,26,34,.65));
+    border-bottom:1px solid var(--ring);
+    padding:14px clamp(14px,2.5vw,22px);
+    display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center;
+  }
+  .brand{display:flex; align-items:center; gap:10px}
+  .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+  .title{margin:0; font-weight:600; font-size:15px; letter-spacing:.2px}
 
-  .controls{display:flex; align-items:center; gap:10px}
-  .select{
-    appearance:none; background:var(--panel); color:var(--ink);
-    border:1px solid var(--ring); border-radius:999px;
-    padding:10px 40px 10px 14px; font:inherit; font-size:13px;
-  }
-  .chev{pointer-events:none; margin-left:-34px; width:12px; opacity:.7}
-  .refresh{
-    background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px;
-    width:36px; height:36px; display:grid; place-items:center; margin-left:6px; cursor:pointer;
-  }
+  .controls{display:flex; align-items:center; gap:10px}
+  .select{
+    appearance:none; background:var(--panel); color:var(--ink);
+    border:1px solid var(--ring); border-radius:999px;
+    padding:10px 40px 10px 14px; font:inherit; font-size:13px;
+  }
+  .chev{pointer-events:none; margin-left:-34px; width:12px; opacity:.7}
+  .refresh{
+    background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px;
+    width:36px; height:36px; display:grid; place-items:center; margin-left:6px; cursor:pointer;
+  }
 
-  .panel{
-    max-width:900px; width:100%; margin:0 auto; height:100%; min-height:0;
-    display:grid; grid-template-rows:1fr auto;
-    border:1px solid var(--ring); background:linear-gradient(180deg,#0f141c,#0e131a);
-    border-radius:18px; overflow:hidden
-  }
-  .messages{
-    position:relative; padding:clamp(14px,2.5vw,20px);
-    padding-bottom:110px; scroll-padding-bottom:110px;
-    height:100%; min-height:0; overflow:auto;
-    scroll-behavior: smooth; /* Added for smoother scrolling */
-  }
-  .messages::before{
-    content:""; position:sticky; top:0; left:0; right:0; height:64px;
-    background:linear-gradient(180deg, var(--bg), rgba(15,17,21,0));
-    pointer-events:none; z-index:1;
-  }
+  .panel{
+    max-width:900px; width:100%; margin:0 auto; height:100%; min-height:0;
+    display:grid; grid-template-rows:1fr auto;
+    border:1px solid var(--ring); background:linear-gradient(180deg,#0f141c,#0e131a);
+    border-radius:18px; overflow:hidden
+  }
+  .messages{
+    position:relative; padding:clamp(14px,2.5vw,20px);
+    padding-bottom:110px; scroll-padding-bottom:110px;
+    height:100%; min-height:0; overflow:auto;
+  }
+  .messages::before{
+    content:""; position:sticky; top:0; left:0; right:0; height:64px;
+    background:linear-gradient(180deg, var(--bg), rgba(15,17,21,0));
+    pointer-events:none; z-index:1;
+  }
 
-  .bubble{
-    display:block; width:fit-content; max-width:min(76ch, calc(100% - 32px));
-    border-radius:16px; padding:12px 14px; margin:10px 0; line-height:1.6;
-  }
-  .user{ background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto }
-  .ai{   background:var(--bubble-ai);   border:1px solid var(--ring); margin-right:auto; position:relative; padding-bottom:36px }
+  .bubble{
+    display:block; width:fit-content; max-width:min(76ch, calc(100% - 32px));
+    border-radius:16px; margin:10px 0; line-height:1.6;
+  }
+  .user{ background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto; padding:12px 14px; }
+  .ai{
+    background:var(--bubble-ai);
+    border:1px solid var(--ring);
+    margin-right:auto;
+    position:relative;
+    padding-bottom:36px;
+    overflow: hidden; /* prevents overflow during animation */
+  }
 
-  /* centred thinking bubble */
-  .ai.typing{ display:grid; place-items:center; height:34px; min-height:34px; padding:8px 12px }
-  .dots{ display:flex; align-items:center; justify-content:center; gap:6px }
-  .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
-  .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
-  @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
+  .ai.streaming {
+    --cursor-opacity: 1; /* controls the blinking cursor opacity */
+  }
+  .ai .text-content {
+    position: relative;
+    padding: 12px 14px;
+    display: block;
+    white-space: pre-wrap;
+    font-size: 1em;
+    overflow: hidden;
+    opacity: 0;
+    animation: fadeIn 0.5s forwards; /* initial fade in of the container */
+  }
+  .ai .rich {
+    opacity: 0;
+    animation: textReveal 1s 0.2s forwards; /* fade in for the text content */
+  }
+  .ai .actions {
+    position:absolute; left:12px; bottom:8px; display:flex; gap:6px;
+    opacity: 0;
+    transition: opacity .3s ease-in;
+  }
+  .ai.streaming:not(.done) .actions {
+    display: none;
+  }
+  .ai .text-content::after {
+    content: '_';
+    display: inline-block;
+    opacity: var(--cursor-opacity, 0);
+    animation: blinkCursor 1s infinite;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes textReveal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes blinkCursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
 
-  /* --- NEW CSS FOR THE ELEGANT FADE-IN EFFECT --- */
-  .ai .rich span {
-    opacity: 0;
-    transform: translateY(3px);
-    animation: fadeInWord 0.4s ease-out forwards;
-  }
+  /* centred thinking bubble */
+  .ai.typing{ display:grid; place-items:center; height:34px; min-height:34px; padding:8px 12px }
+  .dots{ display:flex; align-items:center; justify-content:center; gap:6px }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
+  .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
+  @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
 
-  @keyframes fadeInWord {
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 
-  .actions{ position:absolute; left:12px; bottom:8px; display:flex; gap:6px }
-  .btn-mini{
-    background:#0c1118; color:var(--ink); border:1px solid var(--ring); border-radius:8px;
-    padding:4px 8px; font-size:11px; cursor:pointer; opacity:.85;
-  }
-  .btn-mini:hover{ opacity:1 }
+  .btn-mini{
+    background:#0c1118; color:var(--ink); border:1px solid var(--ring); border-radius:8px;
+    padding:4px 8px; font-size:11px; cursor:pointer; opacity:.85;
+  }
+  .btn-mini:hover{ opacity:1 }
 
-  .rich h1,.rich h2,.rich h3{ margin:8px 0 6px }
-  .rich h1{ font-size:20px } .rich h2{ font-size:18px } .rich h3{ font-size:16px }
-  .rich code{ background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.95em }
-  .rich pre{ background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto }
-  .rich ul{ padding-left:18px; margin:6px 0 } .rich li{ margin:2px 0 }
+  .rich h1,.rich h2,.rich h3{ margin:8px 0 6px }
+  .rich h1{ font-size:20px } .rich h2{ font-size:18px } .rich h3{ font-size:16px }
+  .rich code{ background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.95em }
+  .rich pre{ background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto }
+  .rich ul{ padding-left:18px; margin:6px 0 } .rich li{ margin:2px 0 }
 
-  .composer{ border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118) }
-  .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px }
-  .send{ background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer }
-  .send:disabled{ opacity:.6; cursor:default }
+  .composer{ border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118) }
+  .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px }
+  .send{ background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer }
+  .send:disabled{ opacity:.6; cursor:default }
 
-  .toast{
-    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
-    background:rgba(20,26,34,.9); color:var(--ink); border:1px solid var(--ring);
-    padding:8px 12px; border-radius:10px; font-size:12px; opacity:0; transition:opacity .2s; z-index:9999
-  }
-  .toast.show{ opacity:1 }
+  .toast{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    background:rgba(20,26,34,.9); color:var(--ink); border:1px solid var(--ring);
+    padding:8px 12px; border-radius:10px; font-size:12px; opacity:0; transition:opacity .2s; z-index:9999
+  }
+  .toast.show{ opacity:1 }
 
-  footer{ opacity:.55; font-size:12px; text-align:center; padding:18px 10px 28px }
-  @media (max-width:560px){ .panel{ border-radius:0 } }
+  footer{ opacity:.55; font-size:12px; text-align:center; padding:18px 10px 28px }
+  @media (max-width:560px){ .panel{ border-radius:0 } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div class="brand">
-      <div class="logo" aria-hidden="true"></div>
-      <h1 class="title">ServeSmartAI</h1>
-    </div>
-    <div class="controls" title="Choose a model">
-      <select id="model" class="select"></select>
-      <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-      <button id="refresh" class="refresh" title="New chat">
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M3.5 9A9 9 0 0 1 18.3 5.6L23 10M1 14l4.7 4.4A9 9 0 0 0 20.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
-        </svg>
-      </button>
-    </div>
-  </header>
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <h1 class="title">ServeSmartAI</h1>
+    </div>
+    <div class="controls" title="Choose a model">
+      <select id="model" class="select"></select>
+      <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <button id="refresh" class="refresh" title="New chat">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <path d="M3.5 9A9 9 0 0 1 18.3 5.6L23 10M1 14l4.7 4.4A9 9 0 0 0 20.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
+    </div>
+  </header>
 
-  <main class="panel">
-    <div id="messages" class="messages"></div>
-    <div class="composer">
-      <input id="prompt" class="input" placeholder="Write your message" autocomplete="off" />
-      <button id="send" class="send">Send</button>
-    </div>
-  </main>
+  <main class="panel">
+    <div id="messages" class="messages"></div>
+    <div class="composer">
+      <input id="prompt" class="input" placeholder="Write your message" autocomplete="off" />
+      <button id="send" class="send">Send</button>
+      </div>
+    </main>
 
-  <footer>Built by ServeSmartAI</footer>
+  <footer>Built by ServeSmartAI</footer>
 </div>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
-  // Elements
-  const modelSel  = document.getElementById('model');
-  const messagesEl= document.getElementById('messages');
-  const promptEl  = document.getElementById('prompt');
-  const sendBtn   = document.getElementById('send');
-  const refreshBtn= document.getElementById('refresh');
-  const toastEl   = document.getElementById('toast');
+  // Elements
+  const modelSel  = document.getElementById('model');
+  const messagesEl= document.getElementById('messages');
+  const promptEl  = document.getElementById('prompt');
+  const sendBtn   = document.getElementById('send');
+  const refreshBtn= document.getElementById('refresh');
+  const toastEl   = document.getElementById('toast');
 
-  // Full conversation context kept here
-  const history = []; // [{role:'user'|'assistant'|'system', content:string}]
+  // Full conversation context kept here
+  const history = []; // [{role:'user'|'assistant'|'system', content:string}]
 
-  // -------- little helpers --------
-  function toast(msg){
-    toastEl.textContent = msg;
-    toastEl.classList.add('show');
-    setTimeout(()=>toastEl.classList.remove('show'), 1400);
-  }
-  function addUserBubble(text){
-    const b = document.createElement('div');
-    b.className = 'bubble user';
-    b.textContent = text;
-    messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    history.push({ role:'user', content:text });
-  }
-  function addTyping(){
-    const b = document.createElement('div');
-    b.className = 'bubble ai typing';
-    b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
-    messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    return b;
-  }
-  // This function is no longer used by send() or regenerate() but is kept in case you want to use it elsewhere.
-  function showBotReply(text, typingBubble, sourcePrompt){
-    const b = document.createElement('div');
-    b.className = 'bubble ai';
-    const rich = document.createElement('div'); rich.className = 'rich';
-    rich.innerHTML = mdToHtml(String(text));
-    b.appendChild(rich);
+  // -------- little helpers --------
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=>toastEl.classList.remove('show'), 1400);
+  }
+  function addUserBubble(text){
+    const b = document.createElement('div');
+    b.className = 'bubble user';
+    b.textContent = text;
+    messagesEl.appendChild(b);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    history.push({ role:'user', content:text });
+  }
+  function addTyping(){
+    const b = document.createElement('div');
+    b.className = 'bubble ai typing';
+    b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+    messagesEl.appendChild(b);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return b;
+  }
+  function showBotReply(text, typingBubble, sourcePrompt){
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div'); rich.className = 'rich';
+    rich.innerHTML = mdToHtml(String(text));
+    b.appendChild(rich);
 
-    const actions = document.createElement('div'); actions.className = 'actions';
-    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
-    regenBtn.onclick = () => regenerate(sourcePrompt, b);
-    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-    b.appendChild(actions);
+    // actions
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
+    b.appendChild(actions);
 
-    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    history.push({ role:'assistant', content:String(text) });
-  }
+    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    history.push({ role:'assistant', content:String(text) });
+  }
 
-  // minimal markdown
-  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function mdToHtml(input){
-    let s = escapeHtml(input);
-    s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
-    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    s = s.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
-    s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
-    s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
-    s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
-    s = s.replace(/(^|\n)(?:[-*]\s.+)(?:\n[-*]\s.+)+/g, block => {
-      const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join('');
-      return `\n<ul>${items}</ul>`;
-    });
-    s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
-    return s.replace(/<p><\/p>/g,'');
-  }
+  // -------- streaming functions (new) --------
+  async function processStream(body, typingBubble, sourcePrompt){
+    const reader = body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let fullReply = '';
+    const bubble = showBotStreaming(typingBubble, sourcePrompt);
 
-  // -------- model list (grouped) --------
-  async function loadModels(){
-    try{
-      const r = await fetch('/api/straico/models');
-      const data = await r.json();
-      const list = Array.isArray(data?.data) ? data.data : [];
+    try{
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      const groups = {};
-      for (const m of list){
-        if (!m?.model) continue;
-        const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
-        (groups[prov] ||= []).push(m);
-      }
-      const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
-      const providers = Object.keys(groups).sort((a,b)=>{
-        const ia = order.indexOf(a), ib = order.indexOf(b);
-        return (ia === -1 && ib === -1) ? a.localeCompare(b) :
-               (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
-      });
+        const chunk = decoder.decode(value, { stream: true });
+        for (const line of chunk.split('\n')) {
+          if (!line) continue;
+          try {
+            const data = JSON.parse(line);
+            const content = data?.choices?.[0]?.delta?.content || data?.response?.completion?.choices?.[0]?.delta?.content;
+            if (content) {
+              fullReply += content;
+              updateStreamingBubble(bubble, fullReply);
+            }
+          } catch(e) {
+            console.error('Failed to parse JSON line:', line, e);
+          }
+        }
+      }
+      history.push({ role:'assistant', content: fullReply });
+      reader.cancel();
+    } catch (e) {
+      console.error('Stream reading failed:', e);
+      updateStreamingBubble(bubble, fullReply + '\n\n**Error:** Could not receive full response.', true);
+    }
+    // Remove the blinking cursor after the stream is complete
+    bubble.style.setProperty('--cursor-opacity', '0');
+  }
 
-      modelSel.innerHTML = '';
-      for (const prov of providers){
-        const og = document.createElement('optgroup');
-        const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
-        og.label = label;
-        for (const m of groups[prov]){
-          const o = document.createElement('option');
-          o.value = m.model; o.textContent = m.name || m.model;
-          og.appendChild(o);
-        }
-        modelSel.appendChild(og);
-      }
-      const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
-      const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
-      modelSel.value = found || modelSel.querySelector('option')?.value || '';
-    } catch {
-      modelSel.innerHTML = '';
-      const og = document.createElement('optgroup'); og.label = 'OpenAI';
-      const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini';
-      og.appendChild(o); modelSel.appendChild(og);
-    }
-  }
+  function showBotStreaming(typingBubble, sourcePrompt){
+    const b = document.createElement('div');
+    b.className = 'bubble ai streaming';
+    b.innerHTML = '<span class="text-content"></span><div class="actions"></div>';
+    
+    const actions = b.querySelector('.actions');
+    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+    copyBtn.onclick = () => navigator.clipboard.writeText(b.querySelector('.rich')?.innerText || b.innerText);
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
 
-  // --- REPLACED 'send' FUNCTION FOR STREAMING ---
-  async function send() {
-    const text = promptEl.value.trim();
-    if (!text || !modelSel.value || sendBtn.disabled) return;
+    if (typingBubble) {
+      messagesEl.replaceChild(b, typingBubble);
+    } else {
+      messagesEl.appendChild(b);
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return b;
+  }
 
-    promptEl.value = '';
-    sendBtn.disabled = true;
-    addUserBubble(text);
-    const typing = addTyping();
-
-    // Create the bot's bubble structure in advance
-    const b = document.createElement('div');
-    b.className = 'bubble ai';
-    const rich = document.createElement('div');
-    rich.className = 'rich';
-    b.appendChild(rich);
-    
-    // Replace the typing indicator with our new empty bubble
-    messagesEl.replaceChild(b, typing);
-
-    let fullReply = ''; // We'll build the full reply here for the history
-
-    try {
-        const model = modelSel.value;
-        const r = await fetch('/api/straico/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // IMPORTANT: We enable streaming here!
-            body: JSON.stringify({ model, messages: history, stream: true })
-        });
-
-        if (!r.ok) {
-            const raw = await r.text();
-            let err = raw;
-            try { err = JSON.parse(raw)?.error || raw; } catch {}
-            rich.textContent = 'Error ' + r.status + ': ' + err;
-            return;
-        }
-
-        // Handle the stream
-        const reader = r.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-            
-            // Server-Sent Events (SSE) often come in a "data: ..." format
-            const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
-
-            for (const line of lines) {
-                const jsonStr = line.replace('data: ', '');
-                try {
-                    if (jsonStr === '[DONE]') continue;
-                    const data = JSON.parse(jsonStr);
-                    // This path depends on your API's streaming format. Adjust if necessary.
-                    const contentChunk = data?.choices?.[0]?.delta?.content || '';
-
-                    if (contentChunk) {
-                        fullReply += contentChunk;
-                        // Split the chunk into words to apply the animation to each one
-                        const words = contentChunk.split(/(\s+)/); // Split by space, keeping spaces
-                        words.forEach(word => {
-                            if (word) {
-                                const span = document.createElement('span');
-                                span.textContent = word;
-                                rich.appendChild(span);
-                            }
-                        });
-
-                        // Auto-scroll to the bottom as new content comes in
-                        messagesEl.scrollTop = messagesEl.scrollHeight;
-                    }
-                } catch (e) {
-                    // Ignore parsing errors for non-JSON lines
-                }
-            }
-        }
-        
-        // The markdown conversion should happen once at the very end
-        rich.innerHTML = mdToHtml(fullReply);
-
-        // Now that the stream is finished, add the action buttons
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn-mini';
-        copyBtn.textContent = 'Copy';
-        const regenBtn = document.createElement('button');
-        regenBtn.className = 'btn-mini';
-        regenBtn.textContent = 'Regenerate';
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(fullReply);
-            toast('Copied to clipboard');
-        };
-        regenBtn.onclick = () => regenerate(text, b);
-        actions.appendChild(copyBtn);
-        actions.appendChild(regenBtn);
-        b.appendChild(actions);
-
-        // Add the final, complete message to the chat history
-        history.push({ role: 'assistant', content: fullReply });
-        messagesEl.scrollTop = messagesEl.scrollHeight; // Final scroll
-
-    } catch (err) {
-        rich.textContent = 'Network error. Please try again. ' + err;
-    } finally {
-        sendBtn.disabled = false;
-        promptEl.focus();
-    }
-  }
-
-  // --- REPLACED 'regenerate' FUNCTION FOR STREAMING ---
-  async function regenerate(sourcePrompt, oldBubble) {
-    if (!sourcePrompt || !oldBubble) return;
-    
-    // Remove the last assistant message from history
-    const lastAssistantIndex = history.findLastIndex(m => m.role === 'assistant');
-    if (lastAssistantIndex > -1) {
-        history.splice(lastAssistantIndex, 1);
-    }
-
-    // Create the new empty bubble and replace the old one
-    const b = document.createElement('div');
-    b.className = 'bubble ai';
-    const rich = document.createElement('div');
-    rich.className = 'rich';
-    b.appendChild(rich);
-    messagesEl.replaceChild(b, oldBubble);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    
-    let fullReply = '';
-
-    try {
-        const model = modelSel.value;
-        const r = await fetch('/api/straico/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // IMPORTANT: We enable streaming here too!
-            body: JSON.stringify({ model, messages: history, stream: true })
-        });
-
-        if (!r.ok) {
-            const raw = await r.text();
-            let err = raw;
-            try { err = JSON.parse(raw)?.error || raw; } catch {}
-            rich.textContent = 'Error ' + r.status + ': ' + err;
-            return;
-        }
-
-        // Handle the stream
-        const reader = r.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
-
-            for (const line of lines) {
-                const jsonStr = line.replace('data: ', '');
-                try {
-                    if (jsonStr === '[DONE]') continue;
-                    const data = JSON.parse(jsonStr);
-                    const contentChunk = data?.choices?.[0]?.delta?.content || '';
-
-                    if (contentChunk) {
-                        fullReply += contentChunk;
-                        // For regeneration, we can update the text directly for performance,
-                        // as re-rendering markdown on every chunk is intensive.
-                        rich.textContent = fullReply; // Simple text update during stream
-                        messagesEl.scrollTop = messagesEl.scrollHeight;
-                    }
-                } catch (e) { /* Ignore parsing errors */ }
-            }
-        }
-
-        // Once finished, render the final markdown
-        rich.innerHTML = mdToHtml(fullReply);
-
-        // Add action buttons
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn-mini';
-        copyBtn.textContent = 'Copy';
-        const regenBtn = document.createElement('button');
-        regenBtn.className = 'btn-mini';
-        regenBtn.textContent = 'Regenerate';
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(fullReply);
-            toast('Copied to clipboard');
-        };
-        regenBtn.onclick = () => regenerate(sourcePrompt, b);
-        actions.appendChild(copyBtn);
-        actions.appendChild(regenBtn);
-        b.appendChild(actions);
-
-        // Add to history
-        history.push({ role: 'assistant', content: fullReply });
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-
-    } catch (err) {
-        rich.textContent = 'Network error. Please try again. ' + err;
-    }
-  }
+  function updateStreamingBubble(bubble, text, isError = false){
+    const contentEl = bubble.querySelector('.text-content');
+    if (!contentEl) return;
+    const htmlContent = mdToHtml(String(text));
+    contentEl.innerHTML = `<div class="rich">${htmlContent}</div>`;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
 
 
-  // -------- events --------
-  sendBtn.addEventListener('click', send);
-  promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
-  refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
-  modelSel.addEventListener('change', () => {
-    const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
-    toast('Model selected: ' + label);
-    promptEl.focus();
-  });
+  // minimal markdown
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function mdToHtml(input){
+    let s = escapeHtml(input);
+    s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+    s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
+    s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
+    s = s.replace(/(^|\n)(?:[-*]\s.+)(?:\n[-*]\s.+)+/g, block => {
+      const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join('');
+      return `\n<ul>${items}</ul>`;
+    });
+    s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
+    return s.replace(/<p><\/p>/g,'');
+  }
 
-  // -------- boot --------
-  loadModels();
-  promptEl.focus();
+  // -------- model list (grouped) --------
+  async function loadModels(){
+    try{
+      const r = await fetch('/api/straico/models');
+      const data = await r.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+
+      // group by provider (text before slash)
+      const groups = {};
+      for (const m of list){
+        if (!m?.model) continue;
+        const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
+        (groups[prov] ||= []).push(m);
+      }
+      const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
+      const providers = Object.keys(groups).sort((a,b)=>{
+        const ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia === -1 && ib === -1) ? a.localeCompare(b) :
+               (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
+      });
+
+      modelSel.innerHTML = '';
+      for (const prov of providers){
+        const og = document.createElement('optgroup');
+        const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
+        og.label = label;
+        for (const m of groups[prov]){
+          const o = document.createElement('option');
+          o.value = m.model; o.textContent = m.name || m.model;
+          og.appendChild(o);
+        }
+        modelSel.appendChild(og);
+      }
+      const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
+      const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
+      modelSel.value = found || modelSel.querySelector('option')?.value || '';
+    } catch {
+      modelSel.innerHTML = '';
+      const og = document.createElement('optgroup'); og.label = 'OpenAI';
+      const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini';
+      og.appendChild(o); modelSel.appendChild(og);
+    }
+  }
+
+  // -------- send + regenerate (now streaming) --------
+  async function send(){
+    const text = promptEl.value.trim();
+    if (!text || !modelSel.value || sendBtn.disabled) return;
+
+    promptEl.value = ''; sendBtn.disabled = true;
+    addUserBubble(text);
+    const typing = addTyping();
+
+    try{
+      const model = modelSel.value;
+      const r = await fetch('/api/straico/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model, messages: history, stream: true })
+      });
+
+      if (!r.ok || !r.body) {
+        const err = await r.json().catch(() => ({}));
+        typing.remove();
+        showBotReply(`Error ${r.status}: ${err.response?.error || err.error || 'Server error'}`, null, text);
+        return;
+      }
+      await processStream(r.body, typing, text);
+    } catch {
+      typing.remove();
+      showBotReply('Network error. Please try again.', null, text);
+    } finally {
+      sendBtn.disabled = false;
+      promptEl.focus();
+    }
+  }
+
+  async function regenerate(sourcePrompt, oldBubble){
+    if (!sourcePrompt || !oldBubble) return;
+    // remove last assistant from history
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === 'assistant') { history.splice(i, 1); break; }
+    }
+    const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
+
+    try{
+      const model = modelSel.value;
+      const r = await fetch('/api/straico/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model, messages: history, stream: true })
+      });
+      if (!r.ok || !r.body) {
+        const err = await r.json().catch(() => ({}));
+        t.remove();
+        showBotReply(`Error ${r.status}: ${err.response?.error || err.error || 'Server error'}`, null, sourcePrompt);
+        return;
+      }
+      await processStream(r.body, t, sourcePrompt);
+    } catch {
+      t.remove();
+      showBotReply('Network error. Please try again.', null, sourcePrompt);
+    }
+  }
+
+  // -------- events --------
+  sendBtn.addEventListener('click', send);
+  promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
+  refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
+  modelSel.addEventListener('change', () => {
+    const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
+    toast('Model selected: ' + label);        // context is preserved
+    promptEl.focus();
+  });
+
+  // -------- boot --------
+  loadModels();
+  promptEl.focus();
 </script>
 </body>
 </html>
