@@ -441,42 +441,66 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
 
   // -------- send + regenerate (non-stream: robust and keeps context) --------
   async function send(){
-    const text = promptEl.value.trim();
-    if (!text || !modelSel.value || sendBtn.disabled) return;
+ // -------- send + fallback-to-non-stream --------
+async function send(){
+  const text = promptEl.value.trim();
+  if (!text || !modelSel.value || sendBtn.disabled) return;
 
-    promptEl.value = ''; sendBtn.disabled = true;
-    addUserBubble(text);
-    const typing = addTyping();
+  promptEl.value = '';
+  sendBtn.disabled = true;
 
-    try{
-      const model = modelSel.value;
-      const r = await fetch('/api/straico/chat', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model, messages: history, stream:false })
-      });
+  addUserBubble(text);
+  const typing = addTyping();
 
-      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-      if (!r.ok){
-        typing.remove();
-        const err = data?.response?.error || data?.error || raw;
-        showBotReply('Error ' + r.status + ': ' + err, null, text);
-        return;
-      }
-      const reply =
-        data?.choices?.[0]?.message?.content
-        || data?.response?.completion?.choices?.[0]?.message?.content
-        || data?.response?.text || 'No content returned.';
-      showBotReply(reply, typing, text);
+  try{
+    const model = modelSel.value;
 
-    } catch {
-      typing.remove();
-      showBotReply('Network error. Please try again.', null, text);
-    } finally {
-      sendBtn.disabled = false;
-      promptEl.focus();
+    // 1) Try streaming first (instant, sentence-by-sentence)
+    let streamed = null;
+    try {
+      streamed = await streamReply(model, history, typing, text);
+    } catch (e) {
+      console.warn('Streaming failed, falling back to non-stream.', e);
     }
+    if (streamed !== null) {
+      // streaming succeeded and already updated the DOM + history
+      return;
+    }
+
+    // 2) Fallback: non-streaming request (robust)
+    const r = await fetch('/api/straico/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, messages: history, stream:false })
+    });
+
+    const raw = await r.text();
+    let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+
+    if (!r.ok){
+      typing.remove();
+      const err = data?.response?.error || data?.error || raw;
+      showBotReply('Error ' + r.status + ': ' + err, null, text);
+      return;
+    }
+
+    const reply =
+      data?.choices?.[0]?.message?.content
+      || data?.response?.completion?.choices?.[0]?.message?.content
+      || data?.response?.text
+      || 'No content returned.';
+    showBotReply(reply, typing, text);
+
+  } catch (err){
+    console.error(err);
+    typing.remove();
+    showBotReply('Network error. Please try again.', null, text);
+  } finally {
+    sendBtn.disabled = false;
+    promptEl.focus();
   }
+}
+
 
   async function regenerate(sourcePrompt, oldBubble){
     if (!sourcePrompt || !oldBubble) return;
