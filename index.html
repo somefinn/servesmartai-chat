@@ -150,255 +150,89 @@
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
-  // Elements
-  const modelSel  = document.getElementById('model');
-  const messagesEl= document.getElementById('messages');
-  const promptEl  = document.getElementById('prompt');
-  const sendBtn   = document.getElementById('send');
-  const refreshBtn= document.getElementById('refresh');
-  const toastEl   = document.getElementById('toast');
+/* ---------- tiny error guard so the UI never dies ---------- */
+window.addEventListener('error', e => console.error('JS error:', e.message, e.error));
+window.addEventListener('unhandledrejection', e => console.error('Promise error:', e.reason));
 
-  // --- smooth scroll helpers (used during streaming) ---
-function isNearBottom(px = 160) {
-return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+/* ---------- element refs ---------- */
+const modelSel   = document.getElementById('model');
+const messagesEl = document.getElementById('messages');
+const promptEl   = document.getElementById('prompt');
+const sendBtn    = document.getElementById('send');
+const refreshBtn = document.getElementById('refresh');
+const toastEl    = document.getElementById('toast');
+
+/* ---------- conversation memory ---------- */
+const history = []; // {role:'user'|'assistant'|'system', content}
+
+/* ---------- tiny UI helpers ---------- */
+function toast(msg){
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(()=>toastEl.classList.remove('show'), 1400);
 }
-
-let scrollAnimId = 0;
-function smoothScrollToBottom(duration = 360) {
-cancelAnimationFrame(scrollAnimId);
-const start = messagesEl.scrollTop;
-const end = messagesEl.scrollHeight - messagesEl.clientHeight;
-const t0 = performance.now();
-const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2; // easeInOutCubic
-function frame(now){
-const p = Math.min(1, (now - t0) / duration);
-messagesEl.scrollTop = start + (end - start) * ease(p);
-if (p < 1) scrollAnimId = requestAnimationFrame(frame);
+function addUserBubble(text){
+  const b = document.createElement('div');
+  b.className = 'bubble user';
+  b.textContent = text;
+  messagesEl.appendChild(b);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  history.push({ role:'user', content:text });
 }
-scrollAnimId = requestAnimationFrame(frame);
+function addTyping(){
+  const b = document.createElement('div');
+  b.className = 'bubble ai typing';
+  b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  messagesEl.appendChild(b);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return b;
 }
-  
-  // Full conversation context kept here
-  const history = []; // [{role:'user'|'assistant'|'system', content:string}]
+function showBotReply(text, typingBubble, sourcePrompt){
+  const b = document.createElement('div');
+  b.className = 'bubble ai';
+  const rich = document.createElement('div'); rich.className = 'rich';
+  rich.innerHTML = mdToHtml(String(text));
+  b.appendChild(rich);
 
-  // -------- little helpers --------
-  function toast(msg){
-    toastEl.textContent = msg;
-    toastEl.classList.add('show');
-    setTimeout(()=>toastEl.classList.remove('show'), 1400);
-  }
-  function addUserBubble(text){
-    const b = document.createElement('div');
-    b.className = 'bubble user';
-    b.textContent = text;
-    messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    history.push({ role:'user', content:text });
-  }
-  function addTyping(){
-    const b = document.createElement('div');
-    b.className = 'bubble ai typing';
-    b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
-    messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    return b;
-  }
-  function showBotReply(text, typingBubble, sourcePrompt){
-    const b = document.createElement('div');
-    b.className = 'bubble ai';
-    const rich = document.createElement('div'); rich.className = 'rich';
-    rich.innerHTML = mdToHtml(String(text));
-    b.appendChild(rich);
-
-    // actions
-    const actions = document.createElement('div'); actions.className = 'actions';
-    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
-    regenBtn.onclick = () => regenerate(sourcePrompt, b);
-    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-    b.appendChild(actions);
-
-    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    history.push({ role:'assistant', content:String(text) });
-  }
-
-  // minimal markdown
-  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function mdToHtml(input){
-    let s = escapeHtml(input);
-    s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
-    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    s = s.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
-    s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
-    s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
-    s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
-    s = s.replace(/(^|\n)(?:[-*]\s.+)(?:\n[-*]\s.+)+/g, block => {
-      const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join('');
-      return `\n<ul>${items}</ul>`;
-    });
-    s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
-    return s.replace(/<p><\/p>/g,'');
-  }
-// ---- Step 2: SSE JSON line -> text extractor (no behavior change yet) ----
-function extractEventContent(line) {
-  // `line` should be the JSON part from an SSE "data: { ... }" message
-  try {
-    const j = JSON.parse(line);
-
-    // Try common shapes first (OpenAI-like), then Straico-wrapped variants.
-    return (
-      j?.choices?.[0]?.delta?.content ??                 // streaming delta
-      j?.choices?.[0]?.message?.content ??               // message content
-      j?.delta?.content ??                               // some providers
-      j?.content ?? j?.text ?? j?.completion ??          // simpler shapes
-      j?.response?.text ??                               // Straico plain text
-      j?.response?.completion?.choices?.[0]?.delta?.content ??
-      j?.response?.completion?.choices?.[0]?.message?.content ??
-      ''
-    );
-  } catch {
-    return '';
-  }
-}
-// ---- Step 3a: buttery scroll helpers ----
-function isNearBottom(px = 120){
-  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
-}
-let followId = 0;
-function startSmoothFollow(){
-  cancelAnimationFrame(followId);
-  function loop(){
-    if (isNearBottom()) {
-      const target = messagesEl.scrollHeight - messagesEl.clientHeight;
-      const dy = target - messagesEl.scrollTop;
-      messagesEl.scrollTop += dy * 0.18;  // gentle easing toward bottom
-    }
-    followId = requestAnimationFrame(loop);
-  }
-  followId = requestAnimationFrame(loop);
-}
-function stopSmoothFollow(){ cancelAnimationFrame(followId); }
-
-// ---- Step 3b: streaming reader (not wired yet) ----
-async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
-  const res = await fetch('/api/straico/chat', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ model, messages: historySoFar, stream:true })
-  });
-  if (!res.ok || !res.body) return null;
-
-  // swap typing -> real bubble
-  const bubble = document.createElement('div'); bubble.className = 'bubble ai';
-  const rich   = document.createElement('div'); rich.className = 'rich';
-  bubble.appendChild(rich);
-
-  // actions (wired after completion)
   const actions = document.createElement('div'); actions.className = 'actions';
   const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
   const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-  actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-  bubble.appendChild(actions);
+  copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
+  regenBtn.onclick = () => regenerate(sourcePrompt, b);
+  actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions);
 
-  if (typingBubble) messagesEl.replaceChild(bubble, typingBubble); else messagesEl.appendChild(bubble);
-
-  // live tail span
-  let live = document.createElement('div'); live.className = 'sentence';
-  rich.appendChild(live);
-
-  startSmoothFollow();
-
-  const reader  = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buf = '';
-  let working = '';
-  let full = '';
-
-  function flushComplete(){
-    const lastDot = working.lastIndexOf('.');
-    const lastExc = working.lastIndexOf('!');
-    const lastQue = working.lastIndexOf('?');
-    const lastEll = working.lastIndexOf('…');
-    const i = Math.max(lastDot, lastExc, lastQue, lastEll);
-    if (i === -1){
-      // no full sentence yet; just update live span (no fade)
-      live.innerHTML = mdToHtml(working);
-      return;
-    }
-    // split off the complete part
-    const complete = working.slice(0, i + 1);
-    const rest     = working.slice(i + 1);
-
-    // commit the complete part with fade
-    rich.removeChild(live);
-    const s = document.createElement('div');
-    s.className = 'sentence';
-    s.innerHTML = mdToHtml(complete);
-    rich.appendChild(s);
-
-    // create fresh live span for remainder
-    live = document.createElement('div'); live.className = 'sentence';
-    live.innerHTML = mdToHtml(rest);
-    rich.appendChild(live);
-
-    full += complete;
-    working = rest;
-  }
-
-  try{
-    while(true){
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buf += decoder.decode(value, { stream:true });
-      // split SSE frames on blank line; keep tail in buf
-      const frames = buf.split(/\n\n/);
-      buf = frames.pop() || '';
-
-      for (const frame of frames){
-        const line = frame.replace(/^data:\s?/, '').trim();
-        if (!line || line === '[DONE]') continue;
-        const piece = extractEventContent(line);
-        if (!piece) continue;
-
-        working += piece;
-        flushComplete();
-        // buttery follow loop already keeps us pinned
-      }
-    }
-  } finally {
-    stopSmoothFollow();
-  }
-
-  // flush any leftover tail
-  if (working){
-    rich.removeChild(live);
-    const s = document.createElement('div');
-    s.className = 'sentence';
-    s.innerHTML = mdToHtml(working);
-    rich.appendChild(s);
-    full += working;
-  } else if (live && live.parentNode){
-    live.parentNode.removeChild(live);
-  }
-
-  if (!full.trim()) return null;
-
-  // wire actions
-  copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || full);
-  regenBtn.onclick = () => regenerate(sourcePrompt, bubble);
-
-  history.push({ role:'assistant', content: full });
-  return full;
+  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  history.push({ role:'assistant', content:String(text) });
 }
-// ===== STREAMING HELPERS (add once) =====
+
+/* ---------- minimal markdown ---------- */
+function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function mdToHtml(input){
+  let s = escapeHtml(input);
+  s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+  s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
+  s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
+  s = s.replace(/(^|\n)(?:[-*]\s.+)(?:\n[-*]\s.+)+/g, block => {
+    const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join('');
+    return `\n<ul>${items}</ul>`;
+  });
+  s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
+  return s.replace(/<p><\/p>/g,'');
+}
+
+/* ============================================================
+   STREAMING HELPERS
+   (safe even if your server returns plain JSON — we fallback)
+   ============================================================ */
 function isNearBottom(px = 120){
   return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
 }
-
 let __scrollAnimId = 0;
 function smoothScrollToBottom(duration = 280){
   cancelAnimationFrame(__scrollAnimId);
@@ -413,25 +247,17 @@ function smoothScrollToBottom(duration = 280){
   }
   __scrollAnimId = requestAnimationFrame(frame);
 }
-
 function extractEventContent(line){
-  // Pull content from SSE data payloads (supports many shapes)
   try{
     const j = JSON.parse(line);
     return (
       j?.choices?.[0]?.delta?.content ??
       j?.choices?.[0]?.message?.content ??
-      j?.delta?.content ??
-      j?.content ??
-      j?.text ??
-      j?.completion ??
-      ''
+      j?.delta?.content ?? j?.content ?? j?.text ?? j?.completion ?? ''
     );
   }catch{ return ''; }
 }
-
 function appendSentence(rich, html){
-  // Elegant fade-in of each complete sentence
   const span = document.createElement('div');
   span.className = 'sentence';
   span.style.opacity = '0';
@@ -440,17 +266,14 @@ function appendSentence(rich, html){
   rich.appendChild(span);
   requestAnimationFrame(()=>{ span.style.opacity = '1'; });
 }
-
 async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
-  // Ask server to stream (SSE). If server doesn’t stream, we’ll return null to trigger fallback.
   const res = await fetch('/api/straico/chat', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
+    method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ model, messages: historySoFar, stream:true })
   });
   if (!res.ok || !res.body) return null;
 
-  // Swap typing bubble for a real AI bubble
+  // swap dots for real bubble
   const b = document.createElement('div'); b.className = 'bubble ai';
   const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
   const actions = document.createElement('div'); actions.className = 'actions';
@@ -462,44 +285,35 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
   const reader  = res.body.getReader();
   const decoder = new TextDecoder('utf-8');
 
-  let buffer   = '';
-  let working  = '';  // growing, not-yet-final sentence
-  let complete = '';  // finalised text (sentences flushed)
+  let buffer  = '';
+  let liveTxt = '';
+  let finalTxt= '';
 
-  // Live line that grows as chunks arrive
   let live = document.createElement('div');
   live.className = 'sentence';
   rich.appendChild(live);
 
-  function flushIfSentenceEnded(){
-    // Find the last sentence terminator
-    const last = Math.max(
-      working.lastIndexOf('.'),
-      working.lastIndexOf('!'),
-      working.lastIndexOf('?'),
-      working.lastIndexOf('…')
-    );
+  function flushIfEnded(){
+    const last = Math.max(liveTxt.lastIndexOf('.'), liveTxt.lastIndexOf('!'), liveTxt.lastIndexOf('?'));
     if (last === -1){
-      // Update the live line only (no fade)
-      live.innerHTML = mdToHtml(working);
+      live.innerHTML = mdToHtml(liveTxt);
       if (isNearBottom()) messagesEl.scrollTop = messagesEl.scrollHeight;
       return;
     }
-    // Split into complete (fade-in) + remainder (stay live)
-    const donePart = working.slice(0, last + 1);
-    const tail     = working.slice(last + 1);
+    const done = liveTxt.slice(0, last + 1);
+    const tail = liveTxt.slice(last + 1);
 
     rich.removeChild(live);
-    appendSentence(rich, mdToHtml(donePart));  // fade this in nicely
-    complete += donePart;
+    appendSentence(rich, mdToHtml(done));
+    finalTxt += done;
 
     live = document.createElement('div');
     live.className = 'sentence';
     live.innerHTML = mdToHtml(tail);
     rich.appendChild(live);
 
+    liveTxt = tail;
     if (isNearBottom()) smoothScrollToBottom(240);
-    working = tail;
   }
 
   while(true){
@@ -507,89 +321,80 @@ async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
     if (done) break;
 
     buffer += decoder.decode(value, { stream:true });
-    const parts = buffer.split(/\n\n/);   // SSE events are separated by blank line
-    buffer = parts.pop() || '';           // keep the incomplete tail
-
-    for (const evt of parts){
-      const line = evt.replace(/^data:\s?/, '').trim();
+    const parts = buffer.split(/\n\n/); buffer = parts.pop() || '';
+    for (const block of parts){
+      const line = block.replace(/^data:\s?/, '').trim();
       if (!line || line === '[DONE]') continue;
       const piece = extractEventContent(line);
       if (piece){
-        working += piece;
-        flushIfSentenceEnded();
+        liveTxt += piece;
+        flushIfEnded();
       }
     }
   }
 
-  // Flush any remainder
-  if (working.trim()){
+  if (liveTxt.trim()){
     rich.removeChild(live);
-    appendSentence(rich, mdToHtml(working));
-    complete += working;
+    appendSentence(rich, mdToHtml(liveTxt));
+    finalTxt += liveTxt;
     if (isNearBottom()) smoothScrollToBottom(240);
   } else if (live && live.parentNode){
     live.parentNode.removeChild(live);
   }
 
-  // If we still have nothing, upstream probably didn’t stream -> tell caller to fallback
-  if (!complete.trim()) return null;
+  if (!finalTxt.trim()) return null; // not a stream; caller will fallback
 
-  // Store in history and wire actions
-  history.push({ role:'assistant', content: complete });
-  copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || complete); };
+  history.push({ role:'assistant', content: finalTxt });
+  copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || finalTxt); };
   regenBtn.onclick = () => regenerate(sourcePrompt, b);
 
-  return complete;
+  return finalTxt;
 }
-// ===== END STREAMING HELPERS =====
 
-  // -------- model list (grouped) --------
-  async function loadModels(){
-    try{
-      const r = await fetch('/api/straico/models');
-      const data = await r.json();
-      const list = Array.isArray(data?.data) ? data.data : [];
+/* ---------- models dropdown (grouped by provider) ---------- */
+async function loadModels(){
+  try{
+    const r = await fetch('/api/straico/models');
+    const data = await r.json();
+    const list = Array.isArray(data?.data) ? data.data : [];
 
-      // group by provider (text before slash)
-      const groups = {};
-      for (const m of list){
-        if (!m?.model) continue;
-        const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
-        (groups[prov] ||= []).push(m);
-      }
-      const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
-      const providers = Object.keys(groups).sort((a,b)=>{
-        const ia = order.indexOf(a), ib = order.indexOf(b);
-        return (ia === -1 && ib === -1) ? a.localeCompare(b) :
-               (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
-      });
-
-      modelSel.innerHTML = '';
-      for (const prov of providers){
-        const og = document.createElement('optgroup');
-        const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
-        og.label = label;
-        for (const m of groups[prov]){
-          const o = document.createElement('option');
-          o.value = m.model; o.textContent = m.name || m.model;
-          og.appendChild(o);
-        }
-        modelSel.appendChild(og);
-      }
-      const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
-      const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
-      modelSel.value = found || modelSel.querySelector('option')?.value || '';
-    } catch {
-      modelSel.innerHTML = '';
-      const og = document.createElement('optgroup'); og.label = 'OpenAI';
-      const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini';
-      og.appendChild(o); modelSel.appendChild(og);
+    const groups = {};
+    for (const m of list){
+      if (!m?.model) continue;
+      const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
+      (groups[prov] ||= []).push(m);
     }
-  }
+    const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
+    const providers = Object.keys(groups).sort((a,b)=>{
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 && ib === -1) ? a.localeCompare(b) :
+             (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
+    });
 
-  // -------- send + regenerate (non-stream: robust and keeps context) --------
-  async function send(){
- // -------- send + fallback-to-non-stream --------
+    modelSel.innerHTML = '';
+    for (const prov of providers){
+      const og = document.createElement('optgroup');
+      const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
+      og.label = label;
+      for (const m of groups[prov]){
+        const o = document.createElement('option');
+        o.value = m.model; o.textContent = m.name || m.model;
+        og.appendChild(o);
+      }
+      modelSel.appendChild(og);
+    }
+
+    const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
+    const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
+    modelSel.value = found || modelSel.querySelector('option')?.value || '';
+  } catch (e){
+    console.error(e);
+    // keep a single safe default so the UI still works
+    modelSel.innerHTML = '<optgroup label="OpenAI"><option value="openai/gpt-4o-mini">OpenAI: GPT-4o mini</option></optgroup>';
+  }
+}
+
+/* ---------- sending (stream first, then JSON fallback) ---------- */
 async function send(){
   const text = promptEl.value.trim();
   if (!text || !modelSel.value || sendBtn.disabled) return;
@@ -598,50 +403,37 @@ async function send(){
   sendBtn.disabled = true;
 
   addUserBubble(text);
-  const typing = addTyping();
+  const thinking = addTyping();
 
   try{
     const model = modelSel.value;
 
-    // 1) Try streaming first (instant, sentence-by-sentence)
-    let streamed = null;
-    try {
-      streamed = await streamReply(model, history, typing, text);
-    } catch (e) {
-      console.warn('Streaming failed, falling back to non-stream.', e);
-    }
-    if (streamed !== null) {
-      // streaming succeeded and already updated the DOM + history
-      return;
-    }
+    // 1) try streaming
+    let got = null;
+    try { got = await streamReply(model, history, thinking, text); } catch (e) { console.error('stream error', e); }
+    if (got !== null){ sendBtn.disabled = false; promptEl.focus(); return; }
 
-    // 2) Fallback: non-streaming request (robust)
+    // 2) fallback to non-stream JSON
     const r = await fetch('/api/straico/chat', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model, messages: history, stream:false })
     });
-
-    const raw = await r.text();
-    let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-
+    const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
     if (!r.ok){
-      typing.remove();
+      thinking.remove();
       const err = data?.response?.error || data?.error || raw;
       showBotReply('Error ' + r.status + ': ' + err, null, text);
       return;
     }
-
     const reply =
       data?.choices?.[0]?.message?.content
       || data?.response?.completion?.choices?.[0]?.message?.content
-      || data?.response?.text
-      || 'No content returned.';
-    showBotReply(reply, typing, text);
+      || data?.response?.text || 'No content returned.';
+    showBotReply(reply, thinking, text);
 
-  } catch (err){
-    console.error(err);
-    typing.remove();
+  } catch (e){
+    console.error(e);
+    thinking.remove();
     showBotReply('Network error. Please try again.', null, text);
   } finally {
     sendBtn.disabled = false;
@@ -649,45 +441,53 @@ async function send(){
   }
 }
 
-
-  async function regenerate(sourcePrompt, oldBubble){
-    if (!sourcePrompt || !oldBubble) return;
-    // remove last assistant from history
-    for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].role === 'assistant') { history.splice(i, 1); break; }
-    }
-    const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
-
-    try{
-      const model = modelSel.value;
-      const r = await fetch('/api/straico/chat', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model, messages: history, stream:false })
-      });
-      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-      if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
-      const reply =
-        data?.choices?.[0]?.message?.content
-        || data?.response?.completion?.choices?.[0]?.message?.content
-        || data?.response?.text || 'No content returned.';
-      showBotReply(reply, t, sourcePrompt);
-    } catch { t.remove(); showBotReply('Network error. Please try again.', null, sourcePrompt); }
+/* ---------- regenerate last assistant ---------- */
+async function regenerate(sourcePrompt, oldBubble){
+  if (!sourcePrompt || !oldBubble) return;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'assistant') { history.splice(i, 1); break; }
   }
+  const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
 
-  // -------- events --------
-  sendBtn.addEventListener('click', send);
-  promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
-  refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
-  modelSel.addEventListener('change', () => {
-    const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
-    toast('Model selected: ' + label);        // context is preserved
-    promptEl.focus();
-  });
+  try{
+    const model = modelSel.value;
 
-  // -------- boot --------
-  loadModels();
+    let got = null;
+    try { got = await streamReply(model, history, t, sourcePrompt); } catch (e) { console.error('stream error', e); }
+    if (got !== null) return;
+
+    const r = await fetch('/api/straico/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, messages: history, stream:false })
+    });
+    const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+    if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
+    const reply =
+      data?.choices?.[0]?.message?.content
+      || data?.response?.completion?.choices?.[0]?.message?.content
+      || data?.response?.text || 'No content returned.';
+    showBotReply(reply, t, sourcePrompt);
+  } catch (e) {
+    console.error(e);
+    t.remove();
+    showBotReply('Network error. Please try again.', null, sourcePrompt);
+  }
+}
+
+/* ---------- events & boot ---------- */
+sendBtn.addEventListener('click', send);
+promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
+refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
+modelSel.addEventListener('change', () => {
+  const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
+  toast('Model selected: ' + label);
   promptEl.focus();
+});
+
+loadModels();               // populate the dropdown
+promptEl.focus();           // ready to type
+console.log('Chat booted'); // simple sanity ping
 </script>
+
 </body>
 </html>
