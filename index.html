@@ -1,12 +1,3 @@
-<!--
-Two small deliverables in this file:
-1) Updated index.html (client) with resilient streaming, graceful fallbacks, centred model label.
-2) A minimal pages/api/straico/chat.js that honours stream=true and proxies SSE through.
-
-Copy the relevant parts into your project.
--->
-
-<!-- ===================== index.html (client) ===================== -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -16,46 +7,103 @@ Copy the relevant parts into your project.
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{ --bg:#0f1115; --bg-2:#0c0f14; --panel:#141a22; --surface:#161d27; --ink:#e9edf3; --muted:#9aa6b2; --ring:#263447; --accent:#6aa6ff; --accent-2:#7b7bff; --bubble-user:#1f2735; --bubble-ai:#121923; }
+  :root{
+    --bg:#0f1115; --bg-2:#0c0f14;
+    --panel:#141a22; --surface:#161d27;
+    --ink:#e9edf3; --muted:#9aa6b2;
+    --ring:#263447; --accent:#6aa6ff; --accent-2:#7b7bff;
+    --bubble-user:#1f2735; --bubble-ai:#121923;
+  }
   *{box-sizing:border-box}
   html,body{height:100%; overflow:hidden}
-  body{ margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink);
-    background: radial-gradient(1400px 900px at 10% -10%, #25324a 0%, transparent 60%), radial-gradient(1000px 800px at 110% -10%, #1d2b45 0%, transparent 55%), linear-gradient(180deg, var(--bg), var(--bg-2)); }
+  body{
+    margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink);
+    background:
+      radial-gradient(1400px 900px at 10% -10%, #25324a 0%, transparent 60%),
+      radial-gradient(1000px 800px at 110% -10%, #1d2b45 0%, transparent 55%),
+      linear-gradient(180deg, var(--bg), var(--bg-2));
+  }
+
   .wrap{height:100dvh; min-height:100svh; display:grid; grid-template-rows:auto 1fr auto; row-gap:18px; padding-top:16px}
-  header{ backdrop-filter:saturate(150%) blur(8px); background:linear-gradient(180deg, rgba(26,34,45,.65), rgba(20,26,34,.65)); border-bottom:1px solid var(--ring); padding:14px clamp(14px,2.5vw,22px); display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
+  header{
+    backdrop-filter:saturate(150%) blur(8px);
+    background:linear-gradient(180deg, rgba(26,34,45,.65), rgba(20,26,34,.65));
+    border-bottom:1px solid var(--ring);
+    padding:14px clamp(14px,2.5vw,22px);
+    display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center;
+  }
   .brand{display:flex; align-items:center; gap:10px}
   .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent-2))}
   .title{margin:0; font-weight:600; font-size:15px; letter-spacing:.2px}
+
   .controls{display:flex; align-items:center; gap:10px}
-  .select{ appearance:none; background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px; padding:10px 40px 10px 14px; font:inherit; font-size:13px; text-align-last:center; }
-  .select option{ text-align:center }
+  .select{
+    appearance:none; background:var(--panel); color:var(--ink);
+    border:1px solid var(--ring); border-radius:999px;
+    padding:10px 40px 10px 14px; font:inherit; font-size:13px;
+  }
   .chev{pointer-events:none; margin-left:-34px; width:12px; opacity:.7}
-  .refresh{ background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px; width:36px; height:36px; display:grid; place-items:center; margin-left:6px; cursor:pointer; }
-  .panel{ max-width:900px; width:100%; margin:0 auto; height:100%; min-height:0; display:grid; grid-template-rows:1fr auto; border:1px solid var(--ring); background:linear-gradient(180deg,#0f141c,#0e131a); border-radius:18px; overflow:hidden }
-  .messages{ position:relative; padding:clamp(14px,2.5vw,20px); padding-bottom:110px; scroll-padding-bottom:110px; height:100%; min-height:0; overflow:auto; }
-  .messages::before{ content:""; position:sticky; top:0; left:0; right:0; height:64px; background:linear-gradient(180deg, var(--bg), rgba(15,17,21,0)); pointer-events:none; z-index:1; }
-  .bubble{ display:block; width:fit-content; max-width:min(76ch, calc(100% - 32px)); border-radius:16px; padding:12px 14px; margin:10px 0; line-height:1.6; }
+  .refresh{
+    background:var(--panel); color:var(--ink); border:1px solid var(--ring); border-radius:999px;
+    width:36px; height:36px; display:grid; place-items:center; margin-left:6px; cursor:pointer;
+  }
+
+  .panel{
+    max-width:900px; width:100%; margin:0 auto; height:100%; min-height:0;
+    display:grid; grid-template-rows:1fr auto;
+    border:1px solid var(--ring); background:linear-gradient(180deg,#0f141c,#0e131a);
+    border-radius:18px; overflow:hidden
+  }
+  .messages{
+    position:relative; padding:clamp(14px,2.5vw,20px);
+    padding-bottom:110px; scroll-padding-bottom:110px;
+    height:100%; min-height:0; overflow:auto;
+  }
+  .messages::before{
+    content:""; position:sticky; top:0; left:0; right:0; height:64px;
+    background:linear-gradient(180deg, var(--bg), rgba(15,17,21,0));
+    pointer-events:none; z-index:1;
+  }
+
+  .bubble{
+    display:block; width:fit-content; max-width:min(76ch, calc(100% - 32px));
+    border-radius:16px; padding:12px 14px; margin:10px 0; line-height:1.6;
+  }
   .user{ background:var(--bubble-user); border:1px solid var(--ring); margin-left:auto }
-  .ai{ background:var(--bubble-ai); border:1px solid var(--ring); margin-right:auto; position:relative; padding-bottom:36px }
+  .ai{   background:var(--bubble-ai);   border:1px solid var(--ring); margin-right:auto; position:relative; padding-bottom:36px }
+
+  /* centred thinking bubble */
   .ai.typing{ display:grid; place-items:center; height:34px; min-height:34px; padding:8px 12px }
   .dots{ display:flex; align-items:center; justify-content:center; gap:6px }
   .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
   .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
   @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
+
   .actions{ position:absolute; left:12px; bottom:8px; display:flex; gap:6px }
-  .btn-mini{ background:#0c1118; color:var(--ink); border:1px solid var(--ring); border-radius:8px; padding:4px 8px; font-size:11px; cursor:pointer; opacity:.85; }
+  .btn-mini{
+    background:#0c1118; color:var(--ink); border:1px solid var(--ring); border-radius:8px;
+    padding:4px 8px; font-size:11px; cursor:pointer; opacity:.85;
+  }
   .btn-mini:hover{ opacity:1 }
+
   .rich h1,.rich h2,.rich h3{ margin:8px 0 6px }
   .rich h1{ font-size:20px } .rich h2{ font-size:18px } .rich h3{ font-size:16px }
   .rich code{ background:#0c1118; border:1px solid var(--ring); padding:2px 6px; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.95em }
   .rich pre{ background:#0c1118; border:1px solid var(--ring); padding:10px; border-radius:10px; overflow:auto }
   .rich ul{ padding-left:18px; margin:6px 0 } .rich li{ margin:2px 0 }
+
   .composer{ border-top:1px solid var(--ring); display:grid; grid-template-columns:1fr auto; gap:10px; padding:12px; background:linear-gradient(180deg,#0e131a,#0c1118) }
   .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px }
   .send{ background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer }
   .send:disabled{ opacity:.6; cursor:default }
-  .toast{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:rgba(20,26,34,.9); color:var(--ink); border:1px solid var(--ring); padding:8px 12px; border-radius:10px; font-size:12px; opacity:0; transition:opacity .2s; z-index:9999 }
+
+  .toast{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    background:rgba(20,26,34,.9); color:var(--ink); border:1px solid var(--ring);
+    padding:8px 12px; border-radius:10px; font-size:12px; opacity:0; transition:opacity .2s; z-index:9999
+  }
   .toast.show{ opacity:1 }
+
   footer{ opacity:.55; font-size:12px; text-align:center; padding:18px 10px 28px }
   @media (max-width:560px){ .panel{ border-radius:0 } }
 </style>
@@ -63,10 +111,15 @@ Copy the relevant parts into your project.
 <body>
 <div class="wrap">
   <header>
-    <div class="brand"><div class="logo" aria-hidden="true"></div><h1 class="title">ServeSmartAI</h1></div>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <h1 class="title">ServeSmartAI</h1>
+    </div>
     <div class="controls" title="Choose a model">
       <select id="model" class="select"></select>
-      <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <svg class="chev" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
       <button id="refresh" class="refresh" title="New chat">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
@@ -75,153 +128,215 @@ Copy the relevant parts into your project.
       </button>
     </div>
   </header>
+
   <main class="panel">
     <div id="messages" class="messages"></div>
-    <div class="composer"><input id="prompt" class="input" placeholder="Write your message" autocomplete="off" /><button id="send" class="send">Send</button></div>
+    <div class="composer">
+      <input id="prompt" class="input" placeholder="Write your message" autocomplete="off" />
+      <button id="send" class="send">Send</button>
+    </div>
   </main>
+
   <footer>Built by ServeSmartAI</footer>
 </div>
+
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
+  // Elements
   const modelSel  = document.getElementById('model');
   const messagesEl= document.getElementById('messages');
   const promptEl  = document.getElementById('prompt');
   const sendBtn   = document.getElementById('send');
   const refreshBtn= document.getElementById('refresh');
   const toastEl   = document.getElementById('toast');
-  const history = [];
 
-  let autoScroll = true;
-  messagesEl.addEventListener('scroll', () => {
-    const atBottom = Math.abs(messagesEl.scrollHeight - messagesEl.clientHeight - messagesEl.scrollTop) < 6;
-    autoScroll = atBottom;
-  });
-  function easeToBottom(){ if (!autoScroll) return; const start = messagesEl.scrollTop; const end = messagesEl.scrollHeight - messagesEl.clientHeight; const dist = end - start; if (dist < 1) return; const dur = 350; const t0 = performance.now(); function step(t){ const p = Math.min(1, (t - t0) / dur); const ease = 1 - Math.pow(1 - p, 3); messagesEl.scrollTop = start + dist * ease; if (p < 1 && autoScroll) requestAnimationFrame(step);} requestAnimationFrame(step); }
+  // Full conversation context kept here
+  const history = []; // [{role:'user'|'assistant'|'system', content:string}]
 
-  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'), 1400); }
-  function addUserBubble(text){ const b = document.createElement('div'); b.className = 'bubble user'; b.textContent = text; messagesEl.appendChild(b); easeToBottom(); history.push({ role:'user', content:text }); }
-  function addTyping(){ const b = document.createElement('div'); b.className = 'bubble ai typing'; b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>'; messagesEl.appendChild(b); easeToBottom(); return b; }
-  function showBotReply(text, typingBubble, sourcePrompt){ const b = document.createElement('div'); b.className = 'bubble ai'; const rich = document.createElement('div'); rich.className = 'rich'; rich.innerHTML = mdToHtml(String(text)); b.appendChild(rich); const actions = document.createElement('div'); actions.className = 'actions'; const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy'; const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate'; copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text)); regenBtn.onclick = () => regenerate(sourcePrompt, b); actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions); if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b); easeToBottom(); history.push({ role:'assistant', content:String(text) }); }
+  // -------- little helpers --------
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=>toastEl.classList.remove('show'), 1400);
+  }
+  function addUserBubble(text){
+    const b = document.createElement('div');
+    b.className = 'bubble user';
+    b.textContent = text;
+    messagesEl.appendChild(b);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    history.push({ role:'user', content:text });
+  }
+  function addTyping(){
+    const b = document.createElement('div');
+    b.className = 'bubble ai typing';
+    b.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+    messagesEl.appendChild(b);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return b;
+  }
+  function showBotReply(text, typingBubble, sourcePrompt){
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div'); rich.className = 'rich';
+    rich.innerHTML = mdToHtml(String(text));
+    b.appendChild(rich);
 
-  function stripHtml(s){ return String(s || '').replace(/<[^>]*>/g,''); }
-  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m])); }
-  function mdToHtml(input){ let s = escapeHtml(input); s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`); s = s.replace(/`([^`]+)`/g, '<code>$1</code>'); s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); s = s.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>'); s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>'); s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>'); s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>'); s = s.replace(/(^|\n)(?:[-*]\s.+)(?:\n[-*]\s.+)+/g, block => { const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join(''); return `\n<ul>${items}</ul>`; }); s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>'; return s.replace(/<p><\/p>/g,''); }
-
-  async function loadModels(){ try{ const r = await fetch('/api/straico/models'); const data = await r.json(); const list = Array.isArray(data?.data) ? data.data : []; const groups = {}; for (const m of list){ if (!m?.model) continue; const prov = (m.model.split('/')[0] || 'Other').toLowerCase(); (groups[prov] ||= []).push(m);} const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai']; const providers = Object.keys(groups).sort((a,b)=>{ const ia = order.indexOf(a), ib = order.indexOf(b); return (ia === -1 && ib === -1) ? a.localeCompare(b) : (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib; }); modelSel.innerHTML = ''; for (const prov of providers){ const og = document.createElement('optgroup'); const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' '); og.label = label; for (const m of groups[prov]){ const o = document.createElement('option'); o.value = m.model; o.textContent = m.name || m.model; og.appendChild(o);} modelSel.appendChild(og);} const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet']; const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p)); modelSel.value = found || modelSel.querySelector('option')?.value || ''; } catch { modelSel.innerHTML = ''; const og = document.createElement('optgroup'); og.label = 'OpenAI'; const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini'; og.appendChild(o); modelSel.appendChild(og); } }
-
-  // Robust delta extractor for many provider shapes
-  function extractDelta(obj){ if (!obj || typeof obj !== 'object') return ''; return (
-    obj?.choices?.[0]?.delta?.content ||
-    obj?.delta?.content ||
-    obj?.response?.delta ||
-    obj?.response?.text ||
-    obj?.response?.completion?.choices?.[0]?.message?.content ||
-    obj?.data?.completion?.choices?.[0]?.message?.content ||
-    obj?.completion?.choices?.[0]?.message?.content ||
-    obj?.choices?.[0]?.message?.content ||
-    obj?.content ||
-    obj?.text ||
-    '' ); }
-
-  async function streamIntoBubble(response, typingBubble, sourcePrompt){ const b = document.createElement('div'); b.className = 'bubble ai'; const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich); messagesEl.replaceChild(b, typingBubble); const actions = document.createElement('div'); actions.className = 'actions'; const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy'; const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate'; copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || rich.textContent || ''); regenBtn.onclick = () => regenerate(sourcePrompt, b); actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-    let accumulated = ''; let received = false; history.push({ role:'assistant', content:'' }); const ct = (response.headers.get('content-type') || '').toLowerCase();
-    if (ct.includes('text/html')){ const html = await response.text(); const msg = stripHtml(html).slice(0,600); rich.innerHTML = mdToHtml('Error from upstream:\n\n' + msg); history[history.length-1].content = 'Error: ' + msg; b.appendChild(actions); return 0; }
-    if (!response.body){ const txt = await response.text(); try{ const data = JSON.parse(txt); const finalText = extractDelta(data) || data?.choices?.[0]?.message?.content || data?.response?.text || data?.text || ''; accumulated = String(finalText); }catch{ accumulated = txt; } rich.innerHTML = mdToHtml(accumulated); history[history.length-1].content = accumulated; b.appendChild(actions); easeToBottom(); return accumulated.length; }
-    const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
-    while (true){ const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream:true });
-      const blocks = buffer.split(/\n\n|\r\n\r\n/); buffer = blocks.pop();
-      for (const blk of blocks){ const line = blk.trim(); if (!line) continue; if (line.startsWith('data:')){ const payload = line.replace(/^data:\s*/,''); if (payload === '[DONE]') continue; try{ const obj = JSON.parse(payload); const delta = extractDelta(obj); if (delta){ accumulated += delta; rich.innerHTML = mdToHtml(accumulated); history[history.length-1].content = accumulated; received = true; easeToBottom(); } }catch{ /* ignore */ } } else { try{ const obj = JSON.parse(line); const delta = extractDelta(obj); if (delta){ accumulated += delta; rich.innerHTML = mdToHtml(accumulated); history[history.length-1].content = accumulated; received = true; easeToBottom(); } }catch{ accumulated += line + '\n'; rich.innerHTML = mdToHtml(accumulated); history[history.length-1].content = accumulated; received = true; easeToBottom(); } } }
-    }
+    // actions
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
     b.appendChild(actions);
-    return received ? accumulated.length : 0;
+
+    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    history.push({ role:'assistant', content:String(text) });
   }
 
-  async function send(){ const text = promptEl.value.trim(); if (!text || !modelSel.value || sendBtn.disabled) return; promptEl.value = ''; sendBtn.disabled = true; addUserBubble(text); const typing = addTyping();
-    try{ const model = modelSel.value; const r = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, messages: history, stream:true }) }); if (!r.ok){ const errText = await r.text(); typing.remove(); showBotReply('Error ' + r.status + ': ' + stripHtml(errText), null, text); return; } const got = await streamIntoBubble(r, typing, text); if (!got){ // fallback: non-stream
-        const r2 = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, messages: history, stream:false }) }); const raw = await r2.text(); if (!r2.ok){ showBotReply('Error ' + r2.status + ': ' + stripHtml(raw), null, text); return; } let data; try{ data = JSON.parse(raw);}catch{ data = null; } const reply = data?.choices?.[0]?.message?.content || data?.response?.completion?.choices?.[0]?.message?.content || data?.completion?.choices?.[0]?.message?.content || data?.response?.text || data?.text || 'No content returned.'; showBotReply(reply, null, text); }
-    } catch (e){ typing.remove(); showBotReply('Network error. Please try again.', null, text); } finally { sendBtn.disabled = false; promptEl.focus(); }
+  // minimal markdown
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function mdToHtml(input){
+    let s = escapeHtml(input);
+    s = s.replace(/```([\s\S]*?)```/g, (_m,c)=>`<pre><code>${c}</code></pre>`);
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+    s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
+    s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
+    s = s.replace(/(^|\n)(?:[-*]\s.+)(?:\n[-*]\s.+)+/g, block => {
+      const items = block.trim().split('\n').map(l => l.replace(/^[-*]\s+/, '')).map(t => `<li>${t}</li>`).join('');
+      return `\n<ul>${items}</ul>`;
+    });
+    s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
+    return s.replace(/<p><\/p>/g,'');
   }
 
-  async function regenerate(sourcePrompt, oldBubble){ if (!sourcePrompt || !oldBubble) return; for (let i = history.length - 1; i >= 0; i--) { if (history[i].role === 'assistant') { history.splice(i, 1); break; } } const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove(); try{ const model = modelSel.value; const r = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, messages: history, stream:true }) }); if (!r.ok){ const err = await r.text(); t.remove(); showBotReply('Error ' + r.status + ': ' + stripHtml(err), null, sourcePrompt); return; } const got = await streamIntoBubble(r, t, sourcePrompt); if (!got){ const r2 = await fetch('/api/straico/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, messages: history, stream:false }) }); const raw = await r2.text(); if (!r2.ok){ showBotReply('Error ' + r2.status + ': ' + stripHtml(raw), null, sourcePrompt); return; } let data; try{ data = JSON.parse(raw);}catch{ data = null; } const reply = data?.choices?.[0]?.message?.content || data?.response?.completion?.choices?.[0]?.message?.content || data?.completion?.choices?.[0]?.message?.content || data?.response?.text || data?.text || 'No content returned.'; showBotReply(reply, null, sourcePrompt); }
+  // -------- model list (grouped) --------
+  async function loadModels(){
+    try{
+      const r = await fetch('/api/straico/models');
+      const data = await r.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+
+      // group by provider (text before slash)
+      const groups = {};
+      for (const m of list){
+        if (!m?.model) continue;
+        const prov = (m.model.split('/')[0] || 'Other').toLowerCase();
+        (groups[prov] ||= []).push(m);
+      }
+      const order = ['openai','anthropic','deepseek','google','meta-llama','mistralai','perplexity','qwen','nvidia','microsoft','amazon','x-ai'];
+      const providers = Object.keys(groups).sort((a,b)=>{
+        const ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia === -1 && ib === -1) ? a.localeCompare(b) :
+               (ia === -1) ? 1 : (ib === -1) ? -1 : ia - ib;
+      });
+
+      modelSel.innerHTML = '';
+      for (const prov of providers){
+        const og = document.createElement('optgroup');
+        const label = prov.replace(/(^|[-])/g, s => s.toUpperCase()).replace(/-/g,' ');
+        og.label = label;
+        for (const m of groups[prov]){
+          const o = document.createElement('option');
+          o.value = m.model; o.textContent = m.name || m.model;
+          og.appendChild(o);
+        }
+        modelSel.appendChild(og);
+      }
+      const preferred = ['openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'];
+      const found = preferred.find(p => [...modelSel.querySelectorAll('option')].some(o => o.value === p));
+      modelSel.value = found || modelSel.querySelector('option')?.value || '';
+    } catch {
+      modelSel.innerHTML = '';
+      const og = document.createElement('optgroup'); og.label = 'OpenAI';
+      const o = document.createElement('option'); o.value = 'openai/gpt-4o-mini'; o.textContent = 'OpenAI: GPT-4o mini';
+      og.appendChild(o); modelSel.appendChild(og);
+    }
+  }
+
+  // -------- send + regenerate (non-stream: robust and keeps context) --------
+  async function send(){
+    const text = promptEl.value.trim();
+    if (!text || !modelSel.value || sendBtn.disabled) return;
+
+    promptEl.value = ''; sendBtn.disabled = true;
+    addUserBubble(text);
+    const typing = addTyping();
+
+    try{
+      const model = modelSel.value;
+      const r = await fetch('/api/straico/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model, messages: history, stream:false })
+      });
+
+      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+      if (!r.ok){
+        typing.remove();
+        const err = data?.response?.error || data?.error || raw;
+        showBotReply('Error ' + r.status + ': ' + err, null, text);
+        return;
+      }
+      const reply =
+        data?.choices?.[0]?.message?.content
+        || data?.response?.completion?.choices?.[0]?.message?.content
+        || data?.response?.text || 'No content returned.';
+      showBotReply(reply, typing, text);
+
+    } catch {
+      typing.remove();
+      showBotReply('Network error. Please try again.', null, text);
+    } finally {
+      sendBtn.disabled = false;
+      promptEl.focus();
+    }
+  }
+
+  async function regenerate(sourcePrompt, oldBubble){
+    if (!sourcePrompt || !oldBubble) return;
+    // remove last assistant from history
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === 'assistant') { history.splice(i, 1); break; }
+    }
+    const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
+
+    try{
+      const model = modelSel.value;
+      const r = await fetch('/api/straico/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model, messages: history, stream:false })
+      });
+      const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
+      if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
+      const reply =
+        data?.choices?.[0]?.message?.content
+        || data?.response?.completion?.choices?.[0]?.message?.content
+        || data?.response?.text || 'No content returned.';
+      showBotReply(reply, t, sourcePrompt);
     } catch { t.remove(); showBotReply('Network error. Please try again.', null, sourcePrompt); }
   }
 
+  // -------- events --------
   sendBtn.addEventListener('click', send);
   promptEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
   refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
-  modelSel.addEventListener('change', () => { const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value; toast('Model selected: ' + label); promptEl.focus(); });
-  loadModels(); promptEl.focus();
+  modelSel.addEventListener('change', () => {
+    const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
+    toast('Model selected: ' + label);        // context is preserved
+    promptEl.focus();
+  });
+
+  // -------- boot --------
+  loadModels();
+  promptEl.focus();
 </script>
 </body>
 </html>
-
-
-<!-- ===================== pages/api/straico/chat.js (server) ===================== -->
-<script type="text/plain" data-filename="pages/api/straico/chat.js">
-const STRAICO_URL = 'https://api.straico.com/v0/prompt/completion';
-const MAX_CHARS = 18000;
-
-export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
-
-function sendJson(res, status, body){ res.status(status).setHeader('Content-Type','application/json'); res.end(JSON.stringify(body)); }
-
-export default async function handler(req, res){
-  if (req.method === 'GET' && req.query?.diag === '1'){
-    return sendJson(res, 200, { ok: true, hasKey: !!process.env.STRAICO_API_KEY });
-  }
-  if (req.method !== 'POST') return sendJson(res, 405, { ok:false, error:'Method not allowed' });
-
-  const key = process.env.STRAICO_API_KEY;
-  if (!key) return sendJson(res, 500, { ok:false, error:'Missing STRAICO_API_KEY' });
-
-  let body;
-  try{ body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; }
-  catch{ return sendJson(res, 400, { ok:false, error:'Invalid JSON body' }); }
-
-  const { model, messages = [], temperature = 0.7, max_output = 1200, stream = false } = body || {};
-  if (!model) return sendJson(res, 400, { ok:false, error:'Missing model' });
-  if (!Array.isArray(messages) || !messages.length) return sendJson(res, 400, { ok:false, error:'Missing messages' });
-
-  // Flatten chat history into a single prompt string for v0
-  const lines = [];
-  for (const m of messages){ const who = m.role === 'user' ? 'User' : m.role === 'assistant' ? 'Assistant' : 'System'; lines.push(`${who}: ${m.content}`); }
-  let message = lines.join('\n\n'); if (message.length > MAX_CHARS) message = message.slice(-MAX_CHARS);
-
-  const controller = new AbortController(); const timeout = setTimeout(()=>controller.abort(), 30000);
-  try{
-    const upstream = await fetch(STRAICO_URL, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
-      body: JSON.stringify({ model, message, temperature, max_output, stream }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (!stream){
-      const text = await upstream.text();
-      if (!upstream.ok){ res.status(upstream.status).setHeader('Content-Type', upstream.headers.get('content-type') || 'text/plain'); return res.end(text); }
-      // Pass through JSON without over-normalising to avoid swallowing provider shapes
-      res.status(200).setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
-      return res.end(text);
-    }
-
-    // Streaming proxy: pipe upstream SSE/NDJSON/plain text straight through
-    res.setHeader('Cache-Control','no-cache');
-    res.setHeader('Connection','keep-alive');
-    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/event-stream');
-    res.statusCode = upstream.ok ? 200 : upstream.status;
-
-    if (!upstream.body){
-      const text = await upstream.text();
-      return res.end(text);
-    }
-
-    for await (const chunk of upstream.body){ res.write(chunk); }
-    res.end();
-  } catch (err){
-    const reason = err?.name === 'AbortError' ? 'Upstream timeout' : (err?.message || 'Server error');
-    return sendJson(res, 504, { ok:false, error:reason });
-  }
-}
-</script>
