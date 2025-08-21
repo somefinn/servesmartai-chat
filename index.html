@@ -58,7 +58,6 @@
     position:relative; padding:clamp(14px,2.5vw,20px);
     padding-bottom:110px; scroll-padding-bottom:110px;
     height:100%; min-height:0; overflow:auto;
-    -webkit-overflow-scrolling: touch;
   }
   .messages::before{
     content:""; position:sticky; top:0; left:0; right:0; height:64px;
@@ -97,10 +96,6 @@
   .input{ background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:12px; padding:14px 16px; font:inherit; font-size:14px }
   .send{ background:linear-gradient(180deg,var(--accent),#4b86ff); color:#0b1220; border:none; border-radius:12px; padding:12px 18px; font:inherit; font-weight:600; cursor:pointer }
   .send:disabled{ opacity:.6; cursor:default }
-
-  /* sentence fade for streamed chunks */
-  .rich .sentence{ opacity:0; animation:fadeIn .32s ease forwards }
-  @keyframes fadeIn{ to{ opacity:1 } }
 
   .toast{
     position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
@@ -198,7 +193,7 @@
     b.appendChild(actions);
 
     if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-    if (isNearBottom()) smoothScrollToBottom(360);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
     history.push({ role:'assistant', content:String(text) });
   }
 
@@ -219,147 +214,6 @@
     });
     s = s.replace(/\n{2,}/g, '</p><p>'); s = '<p>' + s.replace(/\n/g, '<br>') + '</p>';
     return s.replace(/<p><\/p>/g,'');
-  }
-
-  // ------------ smooth scroll helpers ------------
-  function isNearBottom(px = 140){
-    return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
-  }
-  let scrollAnimId = 0;
-  function smoothScrollToBottom(duration = 320){
-    cancelAnimationFrame(scrollAnimId);
-    const start = messagesEl.scrollTop;
-    const end = messagesEl.scrollHeight - messagesEl.clientHeight;
-    const t0 = performance.now();
-    const ease = t => t<.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
-    function frame(now){
-      const p = Math.min(1, (now - t0) / duration);
-      messagesEl.scrollTop = start + (end - start) * ease(p);
-      if (p < 1) scrollAnimId = requestAnimationFrame(frame);
-    }
-    scrollAnimId = requestAnimationFrame(frame);
-  }
-
-  // ------------ streaming support (SSE) ------------
-  function extractEventContent(line){
-    try{
-      const j = JSON.parse(line);
-      return (
-        j?.choices?.[0]?.delta?.content ??
-        j?.choices?.[0]?.message?.content ??
-        j?.delta?.content ?? j?.content ?? j?.text ?? j?.completion ?? ''
-      );
-    }catch{ return ''; }
-  }
-
-  // Wrap a completed sentence in a fading span
-  function appendSentence(rich, html){
-    const span = document.createElement('div');
-    span.className = 'sentence';
-    span.innerHTML = html;
-    rich.appendChild(span);
-  }
-
-  async function streamReply(model, historySoFar, typingBubble, sourcePrompt){
-    const res = await fetch('/api/straico/chat', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, messages: historySoFar, stream:true })
-    });
-    if (!res.ok || !res.body) return null;
-
-    // Replace the dots with a real bubble we can keep updating
-    const b = document.createElement('div'); b.className = 'bubble ai';
-    const rich = document.createElement('div'); rich.className = 'rich'; b.appendChild(rich);
-    const actions = document.createElement('div'); actions.className = 'actions';
-    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-    actions.appendChild(copyBtn); actions.appendChild(regenBtn); b.appendChild(actions);
-    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-
-    let buffer = '';
-    let working = '';  // current unflushed text
-    let full    = '';  // entire reply we’ve shown
-
-    // live (not-yet-final) line
-    let live = document.createElement('div');
-    live.className = 'sentence';
-    rich.appendChild(live);
-
-    function flushComplete(){
-      // Find last sentence terminator among . ! ? … (and newline paragraph breaks)
-      const lastDot = working.lastIndexOf('.');
-      const lastExc = working.lastIndexOf('!');
-      const lastQue = working.lastIndexOf('?');
-      const lastEll = working.lastIndexOf('…');
-      const lastNl2 = working.lastIndexOf('\n\n');
-      const last = Math.max(lastDot, lastExc, lastQue, lastEll, lastNl2);
-
-      if (last === -1){
-        // Update live without fade
-        live.innerHTML = mdToHtml(working);
-        if (isNearBottom()) messagesEl.scrollTop = messagesEl.scrollHeight;
-        return;
-      }
-
-      const complete = working.slice(0, last + 1);
-      const remainder= working.slice(last + 1);
-
-      // Replace live with a faded, “final” sentence
-      rich.removeChild(live);
-      appendSentence(rich, mdToHtml(complete));
-      full += complete;
-
-      // New live
-      live = document.createElement('div');
-      live.className = 'sentence';
-      live.innerHTML = mdToHtml(remainder);
-      rich.appendChild(live);
-
-      working = remainder;
-
-      if (isNearBottom()) smoothScrollToBottom(260);
-    }
-
-    while(true){
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream:true });
-      const parts = buffer.split(/\n\n/); buffer = parts.pop() || '';
-
-      for (const chunk of parts){
-        const line = chunk.replace(/^data:\s?/, '').trim();
-        if (!line || line === '[DONE]') continue;
-        const piece = extractEventContent(line);
-        if (!piece) continue;
-
-        working += piece;
-        flushComplete();
-      }
-    }
-
-    // Flush whatever remains
-    if (working.trim()){
-      rich.removeChild(live);
-      appendSentence(rich, mdToHtml(working));
-      full += working;
-    } else if (live && live.parentNode){
-      live.parentNode.removeChild(live);
-    }
-
-    if (!full.trim()) return null;
-
-    // Actions
-    copyBtn.onclick = () => { navigator.clipboard.writeText(rich.innerText || full); toast('Copied'); };
-    regenBtn.onclick = () => regenerate(sourcePrompt, b);
-
-    history.push({ role:'assistant', content: full });
-    if (isNearBottom()) smoothScrollToBottom(300);
-    return full;
   }
 
   // -------- model list (grouped) --------
@@ -406,24 +260,17 @@
     }
   }
 
-  // -------- send + regenerate (stream-first; fallback to non-stream) --------
+  // -------- send + regenerate (non-stream: robust and keeps context) --------
   async function send(){
     const text = promptEl.value.trim();
     if (!text || !modelSel.value || sendBtn.disabled) return;
 
     promptEl.value = ''; sendBtn.disabled = true;
     addUserBubble(text);
-    const thinking = addTyping();
+    const typing = addTyping();
 
     try{
       const model = modelSel.value;
-
-      // 1) Try streaming for “arrive-as-you-go”
-      let got = null;
-      try { got = await streamReply(model, history, thinking, text); } catch {}
-      if (got !== null){ sendBtn.disabled = false; promptEl.focus(); return; }
-
-      // 2) Fallback: non-stream (your original path)
       const r = await fetch('/api/straico/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -432,7 +279,7 @@
 
       const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
       if (!r.ok){
-        thinking.remove();
+        typing.remove();
         const err = data?.response?.error || data?.error || raw;
         showBotReply('Error ' + r.status + ': ' + err, null, text);
         return;
@@ -441,10 +288,10 @@
         data?.choices?.[0]?.message?.content
         || data?.response?.completion?.choices?.[0]?.message?.content
         || data?.response?.text || 'No content returned.';
-      showBotReply(reply, thinking, text);
+      showBotReply(reply, typing, text);
 
     } catch {
-      thinking.remove();
+      typing.remove();
       showBotReply('Network error. Please try again.', null, text);
     } finally {
       sendBtn.disabled = false;
@@ -462,12 +309,6 @@
 
     try{
       const model = modelSel.value;
-
-      // stream-first again
-      let got = null;
-      try { got = await streamReply(model, history, t, sourcePrompt); } catch {}
-      if (got !== null) return;
-
       const r = await fetch('/api/straico/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
