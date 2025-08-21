@@ -154,6 +154,23 @@
   const sendBtn   = document.getElementById('send');
   const refreshBtn= document.getElementById('refresh');
   const toastEl   = document.getElementById('toast');
+// --- smooth scrolling helpers (tiny, isolated) ---
+function nearBottom(px = 120){
+  return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+}
+function smoothScrollToBottom(duration = 240){
+  const start = messagesEl.scrollTop;
+  const end   = messagesEl.scrollHeight - messagesEl.clientHeight;
+  if (end <= start) return;
+  const t0 = performance.now();
+  const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+  function frame(now){
+    const p = Math.min(1, (now - t0) / duration);
+    messagesEl.scrollTop = start + (end - start) * ease(p);
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
 
   // Full conversation context kept here
   const history = []; // [{role:'user'|'assistant'|'system', content:string}]
@@ -180,26 +197,76 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
-  function showBotReply(text, typingBubble, sourcePrompt){
-    const b = document.createElement('div');
-    b.className = 'bubble ai';
-    const rich = document.createElement('div'); rich.className = 'rich';
-    rich.innerHTML = mdToHtml(String(text));
-    b.appendChild(rich);
+function showBotReply(text, typingBubble, sourcePrompt){
+  const full = String(text || "");
+  const b = document.createElement('div');
+  b.className = 'bubble ai';
 
-    // actions
-    const actions = document.createElement('div'); actions.className = 'actions';
-    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
+  const rich = document.createElement('div');
+  rich.className = 'rich';
+  b.appendChild(rich);
+
+  // actions
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'btn-mini';
+  copyBtn.textContent = 'Copy';
+  const regenBtn = document.createElement('button');
+  regenBtn.className = 'btn-mini';
+  regenBtn.textContent = 'Regenerate';
+  actions.appendChild(copyBtn);
+  actions.appendChild(regenBtn);
+  b.appendChild(actions);
+
+  if (typingBubble) messagesEl.replaceChild(b, typingBubble);
+  else messagesEl.appendChild(b);
+
+  // typewriter + fade (no server change)
+  let i = 0;
+  const cps = 90; // characters per second
+  let last = performance.now();
+
+  // line that fades in while we type
+  const line = document.createElement('div');
+  line.style.opacity = '0';
+  line.style.transition = 'opacity .28s ease';
+  rich.appendChild(line);
+  requestAnimationFrame(()=>{ line.style.opacity = '1'; });
+
+  function tick(now){
+    const dt = (now - last) / 1000;
+    last = now;
+    const take = Math.max(1, Math.floor(cps * dt));   // at least 1 char
+
+    if (i < full.length){
+      i = Math.min(full.length, i + take);
+      const partial = full.slice(0, i);
+
+      // re-render progressively with markdown
+      line.innerHTML = mdToHtml(partial);
+
+      // keep view following growth
+      if (nearBottom()) smoothScrollToBottom(200);
+
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    // final render (ensures perfect markdown)
+    line.innerHTML = mdToHtml(full);
+
+    // wire buttons once final
+    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || full);
     regenBtn.onclick = () => regenerate(sourcePrompt, b);
-    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-    b.appendChild(actions);
 
-    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    history.push({ role:'assistant', content:String(text) });
+    // store to history for context
+    history.push({ role:'assistant', content: full });
   }
+
+  requestAnimationFrame(tick);
+}
+
 
   // minimal markdown
   function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
