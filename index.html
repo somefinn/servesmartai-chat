@@ -154,6 +154,26 @@
   const refreshBtn= document.getElementById('refresh');
   const toastEl   = document.getElementById('toast');
 
+  // --- smooth scroll helpers (used during streaming) ---
+function isNearBottom(px = 160) {
+return (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < px;
+}
+
+let scrollAnimId = 0;
+function smoothScrollToBottom(duration = 360) {
+cancelAnimationFrame(scrollAnimId);
+const start = messagesEl.scrollTop;
+const end = messagesEl.scrollHeight - messagesEl.clientHeight;
+const t0 = performance.now();
+const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2; // easeInOutCubic
+function frame(now){
+const p = Math.min(1, (now - t0) / duration);
+messagesEl.scrollTop = start + (end - start) * ease(p);
+if (p < 1) scrollAnimId = requestAnimationFrame(frame);
+}
+scrollAnimId = requestAnimationFrame(frame);
+}
+  
   // Full conversation context kept here
   const history = []; // [{role:'user'|'assistant'|'system', content:string}]
 
