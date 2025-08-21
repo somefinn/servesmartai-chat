@@ -205,6 +205,13 @@ function smoothScrollToBottom(duration = 240){
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
+  
+  // Split text into sentences, keeping punctuation
+function splitSentences(text){
+  // matches "anything not punctuation" + "punctuation run" OR leftover tail
+  return text.match(/[^.!?…]+[.!?…]+(?:\s+|$)|.+$/g) || [];
+}
+
 function showBotReply(text, typingBubble, sourcePrompt){
   const full = String(text || "");
   const b = document.createElement('div');
@@ -271,29 +278,6 @@ function showBotReply(text, typingBubble, sourcePrompt){
   // show the first sentence immediately
   revealNext();
 }
-
-
-    // final render (ensures perfect markdown)
-    line.innerHTML = mdToHtml(full);
-
-    // Split text into sentences, keeping punctuation
-function splitSentences(text){
-  // matches "anything not punctuation" + "punctuation run" OR leftover tail
-  return text.match(/[^.!?…]+[.!?…]+(?:\s+|$)|.+$/g) || [];
-}
-
-    
-    // wire buttons once final
-    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || full);
-    regenBtn.onclick = () => regenerate(sourcePrompt, b);
-
-    // store to history for context
-    history.push({ role:'assistant', content: full });
-  }
-
-  requestAnimationFrame(tick);
-}
-
 
   // minimal markdown
   function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
