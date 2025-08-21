@@ -300,6 +300,9 @@ function revealNext(){
   const delay = Math.max(130, Math.min(480, s.length * 6));
   setTimeout(revealNext, delay);
 }
+  // kick off the sentence-by-sentence reveal
+revealNext();
+} // <-- this closes showBotReply(...)
 
   // minimal markdown
   function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
