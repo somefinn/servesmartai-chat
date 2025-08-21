@@ -26,18 +26,41 @@ export default async function handler(req, res) {
 
   try {
     // v0 (single model). We force stream:false; the front-end streams via SSE only if the upstream does.
-    const upstream = await fetch('https://api.straico.com/v0/prompt/completion', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${STRAICO_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-      }),
-    });
+// --- Straico v0 payload normalisation ---
+// 1) Ensure a system message exists (optional, but nice)
+const hasSystem = Array.isArray(messages) && messages.some(m => m.role === 'system');
+const base = hasSystem ? messages : [{ role: 'system', content: 'You are a helpful assistant.' }, ...(messages || [])];
+
+// 2) Keep only non-empty text and convert to parts [{type:'text', text:...}]
+const normalized = base
+  .filter(m => m && typeof m.content === 'string' && m.content.trim() !== '')
+  .map(m => ({
+    role: m.role,
+    content: [{ type: 'text', text: m.content }],
+  }));
+
+if (!normalized.length) {
+  res.status(400).json({ error: 'No non-empty messages to send' });
+  return;
+}
+
+// 3) Provide a "prompt" fallback too (some providers accept this).
+const prompt = normalized.map(m => `${m.role}: ${m.content[0].text}`).join('\n');
+
+const upstream = await fetch('https://api.straico.com/v0/prompt/completion', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${STRAICO_API_KEY}`,
+  },
+  body: JSON.stringify({
+    model,
+    messages: normalized,   // chat shape Straico expects
+    prompt,                 // fallback for safety
+    stream: false,
+  }),
+});
+
 
     const text = await upstream.text();
 
