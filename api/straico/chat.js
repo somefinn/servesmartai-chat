@@ -1,83 +1,105 @@
-// api/straico/chat.js
-// Works on Vercel serverless AND Next.js API routes
+// pages/api/straico/chat.js
 
-const STRAICO_URL = "https://api.straico.com/v0/prompt/completion";
+const STRAICO_URL = 'https://api.straico.com/v0/prompt/completion';
+const MAX_CHARS = 18000;
 
-module.exports = async (req, res) => {
-  // ---- CORS (simple) ----
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") return res.status(200).end();
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Use POST" });
-  }
-
-  // ---- Parse body robustly (Vercel serverless doesn't auto-parse) ----
-  let body = {};
+function toTranscript(messages = []) {
   try {
-    if (req.body && typeof req.body === "object" && Object.keys(req.body).length) {
-      body = req.body;
-    } else {
-      const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const raw = Buffer.concat(chunks).toString("utf8");
-      body = raw ? JSON.parse(raw) : {};
+    const lines = [];
+    for (const m of messages) {
+      const who = m.role === 'user' ? 'User' : m.role === 'assistant' ? 'Assistant' : 'System';
+      lines.push(`${who}: ${m.content}`);
     }
+    let out = lines.join('\n\n');
+    if (out.length > MAX_CHARS) out = out.slice(-MAX_CHARS);
+    return out;
   } catch (e) {
-    return res.status(400).json({ error: "Invalid JSON body" });
+    return '';
+// Health probe: GET /api/straico/chat?diag=1
+export default async function handler(req, res) {
+  if (req.method === 'GET' && req.query?.diag === '1') {
+    return res
+      .status(200)
+      .json({ ok: true, hasKey: !!process.env.STRAICO_API_KEY });
   }
+}
 
-  const { model, messages, stream } = body || {};
-  if (!model || !Array.isArray(messages) || messages.length === 0) {
-    return res.status(422).json({ error: "Missing message" });
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method not allowed');
   }
-
-  // ---- Build single prompt that Straico v0 expects ----
-  const input = messages.map(m => `${m.role}: ${m.content}`).join("\n");
 
   try {
-    const r = await fetch(STRAICO_URL, {
-      method: "POST",
+    const STRAICO_KEY = process.env.STRAICO_API_KEY;
+    if (!STRAICO_KEY) {
+      console.error('[STRAICO] Missing STRAICO_API_KEY');
+      return res.status(500).json({ error: 'Missing STRAICO_API_KEY' });
+    }
+    const key = process.env.STRAICO_API_KEY;
+    if (!key) return res.status(500).json({ error: 'Missing STRAICO_API_KEY' });
+
+    const { model, messages, temperature = 0.7, max_output = 1200 } = req.body || {};
+    const { model, messages = [], temperature = 0.7, max_output = 1200 } =
+      req.body || {};
+    if (!model) return res.status(400).json({ error: 'Missing model' });
+
+    const message = toTranscript(Array.isArray(messages) ? messages : []);
+    console.log('[STRAICO] model:', model);
+    console.log('[STRAICO] transcript chars:', message.length);
+    // Flatten chat history into a single prompt string for v0/prompt/completion
+    const lines = [];
+    for (const m of messages) {
+      const who =
+        m.role === 'user' ? 'User' : m.role === 'assistant' ? 'Assistant' : 'System';
+      lines.push(`${who}: ${m.content}`);
+    }
+    let message = lines.join('\n\n');
+    if (message.length > MAX_CHARS) message = message.slice(-MAX_CHARS);
+
+    const upstream = await fetch(STRAICO_URL, {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.STRAICO_API_KEY || ""}`,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${STRAICO_KEY}`
+        Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({
-        model,
-        input,
-        stream: !!stream, // your UI can still set stream:false
-      }),
+      body: JSON.stringify({ model, message, temperature, max_output })
+      body: JSON.stringify({ model, message, temperature, max_output }),
     });
 
-    const text = await r.text();
-    if (!r.ok) {
-      // Bubble up Straico error text so you can see it in UI
-      return res.status(r.status).json({ error: text || `Upstream error ${r.status}` });
+    const text = await upstream.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = null; }
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
     }
 
-    // Straico responses vary slightly; pull the best-guess text
-    let data;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    if (!upstream.ok) {
+      console.error('[STRAICO] Upstream error', upstream.status, text?.slice(0, 500));
+      // Bubble up Straico’s error so you see it in the chat bubble
+      return res.status(upstream.status).send(text);
+    }
 
-    const replyText =
-      data?.response?.text ??
-      data?.text ??
-      data?.choices?.[0]?.text ??
-      (typeof data === "string" ? data : "") ??
-      "";
+    // Normalise various shapes to OpenAI-like {choices:[{message:{content}}]}
+    const content =
+      data?.data?.completion?.choices?.[0]?.message?.content ||
+      data?.completion?.choices?.[0]?.message?.content ||
+      data?.choices?.[0]?.message?.content ||
+      data?.text ||
+      '';
 
-    // Normalize to OpenAI-like shape your front-end already reads
     return res.status(200).json({
-      choices: [
-        { message: { content: replyText } }
-      ],
-      // keep the raw around for debugging if you want
-      raw: data,
+      choices: [{ message: { role: 'assistant', content } }]
     });
+  } catch (e) {
+    console.error('[STRAICO] Handler crash', e);
+    return res
+      .status(200)
+      .json({ choices: [{ message: { role: 'assistant', content } }] });
   } catch (err) {
-    console.error("Straico proxy error:", err);
-    return res.status(500).json({ error: "Proxy error" });
+    return res.status(500).json({ error: 'Server error' });
   }
-};
+}
