@@ -88,6 +88,13 @@
     background:#0c1118; color:var(--ink); border:1px solid var(--ring); border-radius:8px;
     padding:4px 8px; font-size:11px; cursor:pointer; opacity:.85;
   }
+  /* Smooth container growth for AI replies */
+.reveal{
+  overflow: hidden;
+  height: auto;
+  transition: height .28s ease;
+  will-change: height;
+}
   .btn-mini:hover{ opacity:1 }
 
   /* graceful sentence reveal */
@@ -214,12 +221,18 @@ function splitSentences(text){
 
 function showBotReply(text, typingBubble, sourcePrompt){
   const full = String(text || "");
-  const b = document.createElement('div');
-  b.className = 'bubble ai';
+const b = document.createElement('div');
+b.className = 'bubble ai';
 
-  const rich = document.createElement('div');
-  rich.className = 'rich';
-  b.appendChild(rich);
+// NEW: a wrapper we animate
+const reveal = document.createElement('div');
+reveal.className = 'reveal';
+
+const rich = document.createElement('div');
+rich.className = 'rich';
+
+reveal.appendChild(rich);
+b.appendChild(reveal);
 
   // actions
   const actions = document.createElement('div');
@@ -241,42 +254,51 @@ function showBotReply(text, typingBubble, sourcePrompt){
   const sentences = splitSentences(full);
   let i = 0;
 
-  function revealNext(){
-    if (i >= sentences.length){
-      // wire buttons once final
-      copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || full);
-      regenBtn.onclick = () => regenerate(sourcePrompt, b);
-      // store to history for context
-      history.push({ role:'assistant', content: full });
-      return;
-    }
-
-    const s = sentences[i++];
-    const node = document.createElement('div');
-    node.className = 'sentence';
-    node.innerHTML = mdToHtml(s);  // render just this sentence
-    rich.appendChild(node);
-
-    // trigger fade
-    requestAnimationFrame(()=>{
-      node.style.opacity = '1';
-      node.style.transform = 'translateY(0)';
-    });
-
-    // keep the view following the reveal
-    if (typeof nearBottom === 'function' && typeof smoothScrollToBottom === 'function'){
-      if (nearBottom()) smoothScrollToBottom(220);
-    } else {
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    // pace: a touch longer for longer sentences (clamped)
-    const delay = Math.max(130, Math.min(480, s.length * 6));
-    setTimeout(revealNext, delay);
+function revealNext(){
+  if (i >= sentences.length){
+    // wire buttons once final
+    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || full);
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    // store to history for context
+    history.push({ role:'assistant', content: full });
+    return;
   }
 
-  // show the first sentence immediately
-  revealNext();
+  const s = sentences[i++];
+  const node = document.createElement('div');
+  node.className = 'sentence';
+  node.innerHTML = mdToHtml(s);
+
+  // Measure before
+  const h0 = reveal.offsetHeight;
+
+  // Append this sentence
+  rich.appendChild(node);
+
+  // Trigger the fade-in
+  requestAnimationFrame(()=>{
+    node.style.opacity = '1';
+    node.style.transform = 'translateY(0)';
+  });
+
+  // Measure after and animate height
+  const h1 = reveal.scrollHeight;
+  reveal.style.height = h0 + 'px';   // set current
+  void reveal.offsetHeight;          // force reflow
+  reveal.style.height = h1 + 'px';   // animate to new
+
+  const endOnce = () => {
+    reveal.style.height = 'auto';    // restore natural flow
+    reveal.removeEventListener('transitionend', endOnce);
+  };
+  reveal.addEventListener('transitionend', endOnce);
+
+  // Keep the viewport pinned smoothly if user is near bottom
+  if (nearBottom()) smoothScrollToBottom(220);
+
+  // Pace: slightly longer for longer sentences
+  const delay = Math.max(130, Math.min(480, s.length * 6));
+  setTimeout(revealNext, delay);
 }
 
   // minimal markdown
