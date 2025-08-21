@@ -58,6 +58,7 @@
     position:relative; padding:clamp(14px,2.5vw,20px);
     padding-bottom:110px; scroll-padding-bottom:110px;
     height:100%; min-height:0; overflow:auto;
+    scroll-behavior: smooth; /* Added for smoother scrolling */
   }
   .messages::before{
     content:""; position:sticky; top:0; left:0; right:0; height:64px;
@@ -78,6 +79,20 @@
   .dot{ width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.35; animation:blink 1.2s infinite ease-in-out }
   .dot:nth-child(2){ animation-delay:.2s } .dot:nth-child(3){ animation-delay:.4s }
   @keyframes blink{ 0%,80%,100%{opacity:.25; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)} }
+
+  /* --- NEW CSS FOR THE ELEGANT FADE-IN EFFECT --- */
+  .ai .rich span {
+    opacity: 0;
+    transform: translateY(3px);
+    animation: fadeInWord 0.4s ease-out forwards;
+  }
+
+  @keyframes fadeInWord {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
   .actions{ position:absolute; left:12px; bottom:8px; display:flex; gap:6px }
   .btn-mini{
@@ -176,81 +191,26 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return b;
   }
-  function showBotReply(text, typingBubble, sourcePrompt, isStreaming = false){
-  const b = document.createElement('div');
-  b.className = 'bubble ai';
-  const rich = document.createElement('div'); 
-  rich.className = 'rich';
-  
-  if (isStreaming) {
-    // Start with empty content for streaming
-    rich.innerHTML = '';
-    rich.style.opacity = '0';
-  } else {
-    // Non-streaming (fallback)
+  // This function is no longer used by send() or regenerate() but is kept in case you want to use it elsewhere.
+  function showBotReply(text, typingBubble, sourcePrompt){
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div'); rich.className = 'rich';
     rich.innerHTML = mdToHtml(String(text));
-  }
-  
-  b.appendChild(rich);
+    b.appendChild(rich);
 
-  // actions
-  const actions = document.createElement('div'); actions.className = 'actions';
-  const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
-  const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
-  copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
-  regenBtn.onclick = () => regenerate(sourcePrompt, b);
-  actions.appendChild(copyBtn); actions.appendChild(regenBtn);
-  b.appendChild(actions);
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const copyBtn = document.createElement('button'); copyBtn.className = 'btn-mini'; copyBtn.textContent = 'Copy';
+    const regenBtn= document.createElement('button'); regenBtn.className = 'btn-mini'; regenBtn.textContent = 'Regenerate';
+    copyBtn.onclick = () => navigator.clipboard.writeText(rich.innerText || String(text));
+    regenBtn.onclick = () => regenerate(sourcePrompt, b);
+    actions.appendChild(copyBtn); actions.appendChild(regenBtn);
+    b.appendChild(actions);
 
-  if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
-  
-  if (!isStreaming) {
+    if (typingBubble) messagesEl.replaceChild(b, typingBubble); else messagesEl.appendChild(b);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     history.push({ role:'assistant', content:String(text) });
   }
-  
-  return { bubble: b, richElement: rich };
-}
-
-// Streaming typewriter effect
-function streamText(richElement, text, onComplete) {
-  let currentText = '';
-  let index = 0;
-  const speed = 15; // milliseconds between characters
-  
-  // Fade in the element
-  richElement.style.opacity = '1';
-  richElement.style.transition = 'opacity 0.3s ease-in';
-  
-  function typeNextChar() {
-    if (index < text.length) {
-      currentText += text[index];
-      richElement.innerHTML = mdToHtml(currentText);
-      index++;
-      
-      // Smooth scroll to bottom
-      messagesEl.scrollTo({
-        top: messagesEl.scrollHeight,
-        behavior: 'smooth'
-      });
-      
-      setTimeout(typeNextChar, speed);
-    } else {
-      // Finished typing
-      if (onComplete) onComplete();
-    }
-  }
-  
-  typeNextChar();
-}
-
-// Enhanced smooth scrolling function
-function smoothScrollToBottom() {
-  messagesEl.scrollTo({
-    top: messagesEl.scrollHeight,
-    behavior: 'smooth'
-  });
-}
 
   // minimal markdown
   function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -278,7 +238,6 @@ function smoothScrollToBottom() {
       const data = await r.json();
       const list = Array.isArray(data?.data) ? data.data : [];
 
-      // group by provider (text before slash)
       const groups = {};
       for (const m of list){
         if (!m?.model) continue;
@@ -315,78 +274,217 @@ function smoothScrollToBottom() {
     }
   }
 
-  // -------- send + regenerate (non-stream: robust and keeps context) --------
-  async function send(){
-  const text = promptEl.value.trim();
-  if (!text || !modelSel.value || sendBtn.disabled) return;
+  // --- REPLACED 'send' FUNCTION FOR STREAMING ---
+  async function send() {
+    const text = promptEl.value.trim();
+    if (!text || !modelSel.value || sendBtn.disabled) return;
 
-  promptEl.value = ''; sendBtn.disabled = true;
-  addUserBubble(text);
-  const typing = addTyping();
+    promptEl.value = '';
+    sendBtn.disabled = true;
+    addUserBubble(text);
+    const typing = addTyping();
 
-  try{
-    const model = modelSel.value;
-    const r = await fetch('/api/straico/chat', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, messages: history, stream:false })
-    });
+    // Create the bot's bubble structure in advance
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div');
+    rich.className = 'rich';
+    b.appendChild(rich);
+    
+    // Replace the typing indicator with our new empty bubble
+    messagesEl.replaceChild(b, typing);
 
-    const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-    if (!r.ok){
-      typing.remove();
-      const err = data?.response?.error || data?.error || raw;
-      showBotReply('Error ' + r.status + ': ' + err, null, text);
-      return;
+    let fullReply = ''; // We'll build the full reply here for the history
+
+    try {
+        const model = modelSel.value;
+        const r = await fetch('/api/straico/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // IMPORTANT: We enable streaming here!
+            body: JSON.stringify({ model, messages: history, stream: true })
+        });
+
+        if (!r.ok) {
+            const raw = await r.text();
+            let err = raw;
+            try { err = JSON.parse(raw)?.error || raw; } catch {}
+            rich.textContent = 'Error ' + r.status + ': ' + err;
+            return;
+        }
+
+        // Handle the stream
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            
+            // Server-Sent Events (SSE) often come in a "data: ..." format
+            const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
+
+            for (const line of lines) {
+                const jsonStr = line.replace('data: ', '');
+                try {
+                    if (jsonStr === '[DONE]') continue;
+                    const data = JSON.parse(jsonStr);
+                    // This path depends on your API's streaming format. Adjust if necessary.
+                    const contentChunk = data?.choices?.[0]?.delta?.content || '';
+
+                    if (contentChunk) {
+                        fullReply += contentChunk;
+                        // Split the chunk into words to apply the animation to each one
+                        const words = contentChunk.split(/(\s+)/); // Split by space, keeping spaces
+                        words.forEach(word => {
+                            if (word) {
+                                const span = document.createElement('span');
+                                span.textContent = word;
+                                rich.appendChild(span);
+                            }
+                        });
+
+                        // Auto-scroll to the bottom as new content comes in
+                        messagesEl.scrollTop = messagesEl.scrollHeight;
+                    }
+                } catch (e) {
+                    // Ignore parsing errors for non-JSON lines
+                }
+            }
+        }
+        
+        // The markdown conversion should happen once at the very end
+        rich.innerHTML = mdToHtml(fullReply);
+
+        // Now that the stream is finished, add the action buttons
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn-mini';
+        copyBtn.textContent = 'Copy';
+        const regenBtn = document.createElement('button');
+        regenBtn.className = 'btn-mini';
+        regenBtn.textContent = 'Regenerate';
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(fullReply);
+            toast('Copied to clipboard');
+        };
+        regenBtn.onclick = () => regenerate(text, b);
+        actions.appendChild(copyBtn);
+        actions.appendChild(regenBtn);
+        b.appendChild(actions);
+
+        // Add the final, complete message to the chat history
+        history.push({ role: 'assistant', content: fullReply });
+        messagesEl.scrollTop = messagesEl.scrollHeight; // Final scroll
+
+    } catch (err) {
+        rich.textContent = 'Network error. Please try again. ' + err;
+    } finally {
+        sendBtn.disabled = false;
+        promptEl.focus();
     }
-    const reply =
-      data?.choices?.[0]?.message?.content
-      || data?.response?.completion?.choices?.[0]?.message?.content
-      || data?.response?.text || 'No content returned.';
-    showBotReply(reply, typing, text);
-
-  } catch {
-    typing.remove();
-    showBotReply('Network error. Please try again.', null, text);
-  } finally {
-    sendBtn.disabled = false;
-    promptEl.focus();
   }
-}
 
-  async function regenerate(sourcePrompt, oldBubble){
-  async function regenerate(sourcePrompt, oldBubble){
-  if (!sourcePrompt || !oldBubble) return;
-  // remove last assistant from history
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role === 'assistant') { history.splice(i, 1); break; }
+  // --- REPLACED 'regenerate' FUNCTION FOR STREAMING ---
+  async function regenerate(sourcePrompt, oldBubble) {
+    if (!sourcePrompt || !oldBubble) return;
+    
+    // Remove the last assistant message from history
+    const lastAssistantIndex = history.findLastIndex(m => m.role === 'assistant');
+    if (lastAssistantIndex > -1) {
+        history.splice(lastAssistantIndex, 1);
+    }
+
+    // Create the new empty bubble and replace the old one
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    const rich = document.createElement('div');
+    rich.className = 'rich';
+    b.appendChild(rich);
+    messagesEl.replaceChild(b, oldBubble);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    
+    let fullReply = '';
+
+    try {
+        const model = modelSel.value;
+        const r = await fetch('/api/straico/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // IMPORTANT: We enable streaming here too!
+            body: JSON.stringify({ model, messages: history, stream: true })
+        });
+
+        if (!r.ok) {
+            const raw = await r.text();
+            let err = raw;
+            try { err = JSON.parse(raw)?.error || raw; } catch {}
+            rich.textContent = 'Error ' + r.status + ': ' + err;
+            return;
+        }
+
+        // Handle the stream
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
+
+            for (const line of lines) {
+                const jsonStr = line.replace('data: ', '');
+                try {
+                    if (jsonStr === '[DONE]') continue;
+                    const data = JSON.parse(jsonStr);
+                    const contentChunk = data?.choices?.[0]?.delta?.content || '';
+
+                    if (contentChunk) {
+                        fullReply += contentChunk;
+                        // For regeneration, we can update the text directly for performance,
+                        // as re-rendering markdown on every chunk is intensive.
+                        rich.textContent = fullReply; // Simple text update during stream
+                        messagesEl.scrollTop = messagesEl.scrollHeight;
+                    }
+                } catch (e) { /* Ignore parsing errors */ }
+            }
+        }
+
+        // Once finished, render the final markdown
+        rich.innerHTML = mdToHtml(fullReply);
+
+        // Add action buttons
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn-mini';
+        copyBtn.textContent = 'Copy';
+        const regenBtn = document.createElement('button');
+        regenBtn.className = 'btn-mini';
+        regenBtn.textContent = 'Regenerate';
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(fullReply);
+            toast('Copied to clipboard');
+        };
+        regenBtn.onclick = () => regenerate(sourcePrompt, b);
+        actions.appendChild(copyBtn);
+        actions.appendChild(regenBtn);
+        b.appendChild(actions);
+
+        // Add to history
+        history.push({ role: 'assistant', content: fullReply });
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    } catch (err) {
+        rich.textContent = 'Network error. Please try again. ' + err;
+    }
   }
-  const t = addTyping(); messagesEl.insertBefore(t, oldBubble); oldBubble.remove();
 
-  try{
-    const model = modelSel.value;
-    const r = await fetch('/api/straico/chat', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model, messages: history, stream:false })
-    });
-    const raw = await r.text(); let data; try{ data = JSON.parse(raw);} catch{ data = { raw }; }
-    if (!r.ok){ t.remove(); showBotReply('Error ' + r.status + ': ' + (data?.response?.error || data?.error || raw), null, sourcePrompt); return; }
-    const reply =
-      data?.choices?.[0]?.message?.content
-      || data?.response?.completion?.choices?.[0]?.message?.content
-      || data?.response?.text || 'No content returned.';
-    
-    // Create bubble for streaming
-    const { bubble, richElement } = showBotReply(reply, t, sourcePrompt, true);
-    
-    // Start streaming effect
-    streamText(richElement, reply, () => {
-      // When streaming is complete, add to history
-      history.push({ role:'assistant', content:String(reply) });
-    });
-  } catch { t.remove(); showBotReply('Network error. Please try again.', null, sourcePrompt); }
-}
 
   // -------- events --------
   sendBtn.addEventListener('click', send);
@@ -394,7 +492,7 @@ function smoothScrollToBottom() {
   refreshBtn.addEventListener('click', () => { messagesEl.innerHTML=''; history.length=0; toast('New chat started'); });
   modelSel.addEventListener('change', () => {
     const label = modelSel.options[modelSel.selectedIndex]?.text || modelSel.value;
-    toast('Model selected: ' + label);        // context is preserved
+    toast('Model selected: ' + label);
     promptEl.focus();
   });
 
